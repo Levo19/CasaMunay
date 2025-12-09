@@ -20,33 +20,50 @@ let habitacionData = null;
 // ===== INICIALIZACIÓN =====
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // Obtener configuración
+        // 1. Obtener configuración
         await obtenerConfig();
         
-        // Obtener número de habitación de la URL o sessionStorage
+        // 2. Obtener lista de habitaciones VALIDAS desde el servidor
+        // Esto sirve para validar si la habitación sigue activa hoy
+        const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
+        const dataHab = await response.json();
+        const habitacionesActivas = dataHab.habitaciones || [];
+
+        // 3. Obtener número de habitación de la URL o sessionStorage
         const urlParams = new URLSearchParams(window.location.search);
         const roomParam = urlParams.get('room');
         
+        let habitacionEncontrada = null;
+
+        // PRIORIDAD 1: Si viene por URL (QR)
         if (roomParam) {
-            habitacionData = { numero: roomParam };
-            sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(habitacionData));
-        } else {
+            // Buscamos si el número de la URL existe en la lista de activas
+            habitacionEncontrada = habitacionesActivas.find(h => String(h.numero) === String(roomParam));
+        } 
+        // PRIORIDAD 2: Si ya estaba guardado en sesión
+        else {
             const stored = sessionStorage.getItem('habitacionSeleccionada');
             if (stored) {
-                habitacionData = JSON.parse(stored);
+                const storedData = JSON.parse(stored);
+                // Validamos que la habitación guardada siga estando activa hoy
+                habitacionEncontrada = habitacionesActivas.find(h => String(h.numero) === String(storedData.numero));
             }
         }
         
-        if (!habitacionData) {
-            // Si no hay habitación, redirigir a selección
+        // 4. Decisión de acceso
+        if (!habitacionEncontrada) {
+            // Si no hay habitación válida (o ya expiró su fecha), redirigir a selección
+            console.log("Habitación no válida o expirada. Redirigiendo...");
             window.location.href = 'rooms.html';
             return;
         }
+
+        // Si es válida, actualizamos los datos en memoria y sesión (incluyendo el nombre del huésped)
+        habitacionData = habitacionEncontrada;
+        sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(habitacionData));
         
-        // Mostrar info de habitación
+        // 5. Cargar interfaz
         mostrarInfoHabitacion();
-        
-        // Cargar servicios
         await cargarServicios();
         
         // Ocultar pantalla de carga
@@ -57,7 +74,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
     } catch (error) {
         console.error('Error al inicializar:', error);
-        mostrarError('Error al cargar los servicios. Por favor, recarga la página.');
+        mostrarError('Error al conectar con el hotel. Por favor, recarga la página.');
     }
 });
 
@@ -79,17 +96,32 @@ function mostrarInfoHabitacion() {
     if (!habitacionData) return;
     
     const infoDiv = document.getElementById('habitacionInfo');
+    
+    // Muestra el número
     document.getElementById('numeroHabitacion').textContent = habitacionData.numero;
-    document.getElementById('nombreHuesped').textContent = habitacionData.huesped || 'Estimado huésped';
+    
+    // Muestra el nombre personalizado
+    // Si el Excel tiene nombre, usa ese. Si no, usa "Estimado huésped"
+    const nombreParaMostrar = habitacionData.huesped ? `Hola, ${habitacionData.huesped}` : 'Estimado huésped';
+    
+    // Asegúrate de que tu HTML tenga un elemento donde mostrar este nombre
+    // Por defecto tu código anterior usaba 'nombreHuesped'
+    const elementoNombre = document.getElementById('nombreHuesped');
+    if (elementoNombre) {
+        elementoNombre.textContent = nombreParaMostrar;
+    }
+    
     infoDiv.style.display = 'block';
     
-    // Pre-llenar formulario
-    document.getElementById('habitacionCliente').value = habitacionData.numero;
-    if (habitacionData.huesped) {
-        document.getElementById('nombreCliente').value = habitacionData.huesped;
+    // Pre-llenar formulario de pedido
+    const inputHabitacion = document.getElementById('habitacionCliente');
+    if (inputHabitacion) inputHabitacion.value = habitacionData.numero;
+    
+    const inputNombre = document.getElementById('nombreCliente');
+    if (inputNombre && habitacionData.huesped) {
+        inputNombre.value = habitacionData.huesped;
     }
 }
-
 // ===== CARGAR SERVICIOS =====
 async function cargarServicios() {
     try {
