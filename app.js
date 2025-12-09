@@ -17,21 +17,62 @@ let tabActual = 'bebidas';
 let config = {};
 let habitacionData = null;
 
-// ===== INICIALIZACIÓN (MODO ULTRA RÁPIDO) =====
+// ===== INICIALIZACIÓN (VELOCIDAD EXTREMA) =====
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // Intentamos cargar config de memoria primero (instantáneo)
-        await obtenerConfig();
-
         const path = window.location.pathname;
         const esIndex = path.endsWith('index.html') || path.endsWith('/') || path.endsWith('/CasaMunay/');
         const esServices = path.includes('services.html');
 
         // ---------------------------------------------------------
-        // CASO 1: INDEX
+        // CASO 1: SERVICES (App de pedidos) - PRIORIDAD MÁXIMA
+        // ---------------------------------------------------------
+        if (esServices) {
+             const urlParams = new URLSearchParams(window.location.search);
+             const roomParam = urlParams.get('room');
+
+             // ESTRATEGIA: ¿Tenemos datos en el bolsillo (memoria)?
+             const storedRoom = sessionStorage.getItem('habitacionSeleccionada');
+             
+             if (storedRoom) {
+                 const habitacionEnMemoria = JSON.parse(storedRoom);
+                 
+                 // Si la memoria coincide con la URL...
+                 if (String(habitacionEnMemoria.numero) === String(roomParam)) {
+                     console.log("🚀 VELOCIDAD LUZ: Renderizando interfaz YA.");
+                     
+                     // 1. ASIGNAMOS DATOS
+                     habitacionData = habitacionEnMemoria;
+                     
+                     // 2. PINTAMOS LA PANTALLA INMEDIATAMENTE
+                     mostrarInfoHabitacion();
+                     document.getElementById('loadingScreen').style.display = 'none'; // ¡ADIÓS CARGANDO!
+                     
+                     // 3. CARGAMOS EL RESTO EN "SEGUNDO PLANO" (Sin await que frene)
+                     // El usuario ya puede ver el menú mientras esto pasa:
+                     obtenerConfig().then(() => configurarWhatsApp()); // Config baja despues
+                     cargarServicios(); // Servicios cargan (probablemente desde caché)
+                     validarHabitacionSegundoPlano(roomParam); // Seguridad silenciosa
+                     
+                     return; // ¡TERMINAMOS! El usuario ya está feliz.
+                 }
+             }
+             
+             // SI LLEGAMOS AQUÍ es porque no había caché (Entrada directa/QR)
+             // Entonces sí toca esperar a cargar todo normal
+             console.log("🐢 Carga Normal (Sin caché)...");
+             await obtenerConfig();
+             await validarYEntrar(roomParam);
+             return;
+        }
+
+        // ---------------------------------------------------------
+        // CASO 2: INDEX (Selección)
         // ---------------------------------------------------------
         if (esIndex) {
             console.log("Modo: Selección");
+            // Aquí no importa esperar un poco
+            await obtenerConfig(); 
             const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
             const dataHab = await response.json();
             
@@ -41,41 +82,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const loading = document.getElementById('loadingScreen');
             if (loading) loading.style.display = 'none';
-            return; 
-        }
-
-        // ---------------------------------------------------------
-        // CASO 2: SERVICES (App)
-        // ---------------------------------------------------------
-        if (esServices) {
-             const urlParams = new URLSearchParams(window.location.search);
-             const roomParam = urlParams.get('room');
-
-             // ESTRATEGIA OPTIMISTA:
-             // 1. ¿Tenemos la habitación en memoria porque venimos del Index?
-             const storedRoom = sessionStorage.getItem('habitacionSeleccionada');
-             let habitacionEnMemoria = storedRoom ? JSON.parse(storedRoom) : null;
-
-             // Si el numero coincide con la URL, mostramos la App YA (en 0 segundos)
-             if (habitacionEnMemoria && String(habitacionEnMemoria.numero) === String(roomParam)) {
-                 console.log("🚀 Carga Optimista: Mostrando interfaz inmediatamente");
-                 habitacionData = habitacionEnMemoria;
-                 mostrarInfoHabitacion();
-                 configurarWhatsApp();
-                 document.getElementById('loadingScreen').style.display = 'none'; // ¡ADIOS SPINNER!
-                 
-                 // Cargamos servicios visualmente (ya están en caché también)
-                 cargarServicios();
-                 
-                 // 2. VALIDACIÓN SILENCIOSA (Seguridad en segundo plano)
-                 // Verificamos que la habitación siga siendo válida realmente
-                 validarHabitacionSegundoPlano(roomParam);
-                 
-             } else {
-                 // Si entra directo por QR (sin memoria), toca esperar la validación normal
-                 console.log("🛡️ Entrada directa/QR: Validando seguridad...");
-                 await validarYEntrar(roomParam);
-             }
         }
 
     } catch (error) {
@@ -83,7 +89,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         mostrarError('Error de conexión.');
     }
 });
-
 // ===== FUNCIONES AUXILIARES DE CARGA =====
 
 // Valida normal (para cuando entran por QR directo)
