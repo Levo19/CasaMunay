@@ -591,7 +591,6 @@ window.onclick = function(event) {
 
 // ===== RENDERIZAR BOTONES DE SELECCIÓN (PARA INDEX.HTML) =====
 function renderizarSeleccionHabitaciones(habitaciones) {
-    // CORRECCIÓN: Usamos el ID correcto del HTML "roomsContainer"
     const container = document.getElementById('roomsContainer'); 
     
     if (!container) return;
@@ -604,10 +603,15 @@ function renderizarSeleccionHabitaciones(habitaciones) {
     }
 
     habitaciones.forEach(hab => {
-        const card = document.createElement('div'); // Usamos DIV con onclick, o A con href
+        const card = document.createElement('div'); // Usamos DIV con onclick
         card.className = 'room-card';
-        // Creamos el evento de redirección
+        
+        // 🚨 AQUÍ ESTÁ EL CAMBIO CLAVE: GUARDAR ANTES DE IR 🚨
         card.onclick = function() {
+            // 1. Guardamos los datos de la habitación en la mochila del navegador
+            sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(hab));
+            
+            // 2. Ahora sí, nos vamos a la otra página
             window.location.href = `services.html?room=${hab.numero}`;
         };
         
