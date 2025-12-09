@@ -1,8 +1,14 @@
 // ===== CONFIGURACIÓN =====
 const CONFIG = {
     // IMPORTANTE: Reemplaza esta URL con la URL de tu Apps Script después de desplegarlo
-    API_URL: 'https://script.google.com/macros/s/AKfycbzKJ3J5cG8cJ4hKFPDmVYOfRTn9aqmkOnjyDfMabRhsNaFCO-7AQ2COPa9iGjJysMkL/exec'
+    API_URL: 'https://script.google.com/macros/s/AKfycbzYOUR_SCRIPT_ID_HERE/exec'
 };
+
+// Habilitar modo debug para ver errores
+const DEBUG = true;
+function log(...args) {
+    if (DEBUG) console.log(...args);
+}
 
 // ===== ESTADO GLOBAL =====
 let servicios = [];
@@ -87,16 +93,32 @@ function mostrarInfoHabitacion() {
 // ===== CARGAR SERVICIOS =====
 async function cargarServicios() {
     try {
+        log('Cargando servicios desde:', CONFIG.API_URL);
         const response = await fetch(`${CONFIG.API_URL}?action=getServicios`);
+        log('Response status:', response.status);
+        
         const data = await response.json();
+        log('Datos recibidos:', data);
         
         if (data.servicios) {
             servicios = data.servicios;
             renderizarCategorias();
             renderizarServicios();
+        } else {
+            throw new Error('No se recibieron servicios');
         }
     } catch (error) {
         console.error('Error al cargar servicios:', error);
+        document.getElementById('loadingScreen').innerHTML = `
+            <div style="text-align: center; padding: 40px;">
+                <h2 style="color: #ef4444;">Error al cargar servicios</h2>
+                <p>Por favor, verifica la configuración del API_URL en app.js</p>
+                <p style="color: #6b7280; font-size: 14px;">Error: ${error.message}</p>
+                <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                    Reintentar
+                </button>
+            </div>
+        `;
         throw error;
     }
 }
