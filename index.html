@@ -265,11 +265,12 @@
         }
 
         function seleccionarHabitacion(habitacion) {
-            // Guardar datos en sessionStorage
+            // Guardar datos en sessionStorage (Opcional, pero útil)
             sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(habitacion));
             
-            // Redirigir a la página de servicios
-            window.location.href = `index.html?room=${habitacion.numero}`;
+            // CORRECCIÓN IMPORTANTE: 
+            // Redirigir a 'services.html' que es donde está tu App de pedidos (app.js)
+            window.location.href = `services.html?room=${habitacion.numero}`;
         }
 
         function mostrarError(mensaje) {
