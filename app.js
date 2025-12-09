@@ -1,6 +1,6 @@
 // ===== CONFIGURACIÓN =====
 const CONFIG = {
-    // IMPORTANTE: Reemplaza esta URL con la URL de tu Apps Script después de desplegarlo
+    // URL de tu Google Apps Script
     API_URL: 'https://script.google.com/macros/s/AKfycbzKJ3J5cG8cJ4hKFPDmVYOfRTn9aqmkOnjyDfMabRhsNaFCO-7AQ2COPa9iGjJysMkL/exec'
 };
 
@@ -41,7 +41,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 renderizarSeleccionHabitaciones(habitacionesActivas);
             }
             
-            document.getElementById('loadingScreen').style.display = 'none';
+            // Si existe la pantalla de carga, la quitamos
+            const loading = document.getElementById('loadingScreen');
+            if (loading) loading.style.display = 'none';
             return; 
         }
 
@@ -54,7 +56,6 @@ document.addEventListener('DOMContentLoaded', async () => {
              const roomParam = urlParams.get('room');
 
              // 2. Validamos con el servidor (Seguridad)
-             // Nota: Esto tarda unos milisegundos, pero es necesario para validar fecha/estado
              const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
              const dataHab = await response.json();
              const habitacionesActivas = dataHab.habitaciones || [];
@@ -77,27 +78,22 @@ document.addEventListener('DOMContentLoaded', async () => {
              configurarWhatsApp();
              
              // Ocultamos la pantalla de carga AHORA MISMO
-             // (El usuario ya ve "Hola Juan Perez" y las pestañas, aunque los productos sigan cargando)
              document.getElementById('loadingScreen').style.display = 'none';
 
              // 4. Cargamos los servicios (Coca Cola, Tours, etc.)
-             // Esta función ya usa el caché del Index, así que debería ser instantánea
              await cargarServicios();
         }
 
     } catch (error) {
         console.error('Error al inicializar:', error);
-        // Si falla todo, mostramos error en pantalla
         mostrarError('Error de conexión. Intenta recargar.');
     }
 });
 
 // ===== CARGAR SERVICIOS (CON CACHÉ DE VELOCIDAD) =====
-// Reemplaza tu función cargarServicios antigua por esta
 async function cargarServicios() {
     try {
         // A. INTENTO DE CARGA INSTANTÁNEA (CACHE DEL INDEX)
-        // Revisamos si el index.html ya nos dejó el menú guardado
         const menuCache = sessionStorage.getItem('menuCache');
         
         if (menuCache) {
@@ -106,13 +102,12 @@ async function cargarServicios() {
             if (data.servicios) {
                 servicios = data.servicios;
                 renderizarServicios();
-                return; // ¡Terminamos! No gastamos datos ni tiempo llamando a Google
+                return; // Terminamos aquí, no llamamos a Google
             }
         }
 
         // B. SI NO HAY CACHE, CARGA NORMAL (Backup)
         console.log('🌐 No hay caché, descargando de Google...');
-        // Si estamos aquí, mostramos un pequeño spinner local si quieres, o dejamos que cargue
         const response = await fetch(`${CONFIG.API_URL}?action=getServicios`);
         const data = await response.json();
         
@@ -127,7 +122,6 @@ async function cargarServicios() {
 
     } catch (error) {
         console.error('Error al cargar servicios:', error);
-        // Solo mostramos error si no hay nada en pantalla
         if (servicios.length === 0) {
             mostrarError(`No se pudo cargar el menú: ${error.message}`);
         }
@@ -137,11 +131,10 @@ async function cargarServicios() {
 // ===== OBTENER CONFIGURACIÓN =====
 async function obtenerConfig() {
     try {
-        log('Obteniendo configuración...');
+        // Intentamos obtener config del cache primero también si quieres
         const response = await fetch(`${CONFIG.API_URL}?action=getConfig`);
         const data = await response.json();
         config = data;
-        log('Configuración obtenida:', config);
     } catch (error) {
         console.error('Error al obtener configuración:', error);
     }
@@ -157,11 +150,8 @@ function mostrarInfoHabitacion() {
     document.getElementById('numeroHabitacion').textContent = habitacionData.numero;
     
     // Muestra el nombre personalizado
-    // Si el Excel tiene nombre, usa ese. Si no, usa "Estimado huésped"
     const nombreParaMostrar = habitacionData.huesped ? `Hola, ${habitacionData.huesped}` : 'Estimado huésped';
     
-    // Asegúrate de que tu HTML tenga un elemento donde mostrar este nombre
-    // Por defecto tu código anterior usaba 'nombreHuesped'
     const elementoNombre = document.getElementById('nombreHuesped');
     if (elementoNombre) {
         elementoNombre.textContent = nombreParaMostrar;
@@ -178,39 +168,7 @@ function mostrarInfoHabitacion() {
         inputNombre.value = habitacionData.huesped;
     }
 }
-// ===== CARGAR SERVICIOS (OPTIMIZADO) =====
-async function cargarServicios() {
-    try {
-        // 1. INTENTO DE CARGA INSTANTÁNEA (CACHE)
-        const menuCache = sessionStorage.getItem('menuCache');
-        
-        if (menuCache) {
-            log('¡Usando menú pre-cargado! Velocidad luz ⚡');
-            const data = JSON.parse(menuCache);
-            servicios = data.servicios;
-            renderizarServicios();
-            return; // ¡Terminamos! No hace falta llamar a Google
-        }
 
-        // 2. SI NO HAY CACHE, CARGA NORMAL (LENTA)
-        log('No hay caché, cargando desde Google...');
-        const response = await fetch(`${CONFIG.API_URL}?action=getServicios`);
-        const data = await response.json();
-        
-        if (data.servicios) {
-            servicios = data.servicios;
-            // Guardamos para la próxima (por si recarga la página)
-            sessionStorage.setItem('menuCache', JSON.stringify(data));
-            renderizarServicios();
-        } else {
-            throw new Error('Formato de datos incorrecto');
-        }
-
-    } catch (error) {
-        console.error('Error al cargar servicios:', error);
-        mostrarError(`Error al cargar servicios: ${error.message}`);
-    }
-}
 // ===== CAMBIAR TAB =====
 function cambiarTab(tab) {
     tabActual = tab;
@@ -538,22 +496,28 @@ function configurarWhatsApp() {
     const whatsappUrl = `https://wa.me/${config.whatsapp}?text=${mensaje}`;
     
     const whatsappBtn = document.getElementById('whatsappButton');
-    whatsappBtn.href = whatsappUrl;
-    whatsappBtn.style.display = 'flex';
+    if (whatsappBtn) {
+        whatsappBtn.href = whatsappUrl;
+        whatsappBtn.style.display = 'flex';
+    }
 }
 
 // ===== MOSTRAR ERROR =====
 function mostrarError(mensaje) {
-    document.getElementById('loadingScreen').innerHTML = `
-        <div style="text-align: center; padding: 40px;">
-            <div style="font-size: 4rem; margin-bottom: 20px;">⚠️</div>
-            <h2 style="color: #ef4444; margin-bottom: 15px;">Error</h2>
-            <p style="color: #6b7280;">${mensaje}</p>
-            <button onclick="location.reload()" style="margin-top: 20px; padding: 12px 30px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 1rem;">
-                Reintentar
-            </button>
-        </div>
-    `;
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) {
+        loadingScreen.innerHTML = `
+            <div style="text-align: center; padding: 40px;">
+                <div style="font-size: 4rem; margin-bottom: 20px;">⚠️</div>
+                <h2 style="color: #ef4444; margin-bottom: 15px;">Error</h2>
+                <p style="color: #6b7280;">${mensaje}</p>
+                <button onclick="location.reload()" style="margin-top: 20px; padding: 12px 30px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 1rem;">
+                    Reintentar
+                </button>
+            </div>
+        `;
+        loadingScreen.style.display = 'flex';
+    }
 }
 
 // ===== CERRAR MODALES AL HACER CLIC FUERA =====
@@ -568,12 +532,15 @@ window.onclick = function(event) {
         cerrarConfirmacion();
     }
 }
+
 // ===== RENDERIZAR BOTONES DE SELECCIÓN (PARA INDEX.HTML) =====
 function renderizarSeleccionHabitaciones(habitaciones) {
-    const container = document.getElementById('listaHabitaciones'); // Asegúrate que tu index.html tenga un div con este ID
+    // CORRECCIÓN: Usamos el ID correcto del HTML "roomsContainer"
+    const container = document.getElementById('roomsContainer'); 
+    
     if (!container) return;
 
-    container.innerHTML = ''; // Limpiar
+    container.innerHTML = ''; 
 
     if (habitaciones.length === 0) {
         container.innerHTML = '<p class="no-rooms">No hay habitaciones disponibles para check-in hoy.</p>';
@@ -581,16 +548,22 @@ function renderizarSeleccionHabitaciones(habitaciones) {
     }
 
     habitaciones.forEach(hab => {
-        // Creamos el botón/tarjeta que lleva a services.html
-        const card = document.createElement('a');
-        card.className = 'room-card'; // Asegúrate de tener estilos para esta clase
-        card.href = `services.html?room=${hab.numero}`; // EL ENLACE MÁGICO
+        const card = document.createElement('div'); // Usamos DIV con onclick, o A con href
+        card.className = 'room-card';
+        // Creamos el evento de redirección
+        card.onclick = function() {
+            window.location.href = `services.html?room=${hab.numero}`;
+        };
+        
+        // Estilos de estado
+        const statusClass = hab.estado === 'ocupada' ? 'status-ocupada' : 'status-disponible';
+        const statusText = hab.estado === 'ocupada' ? 'Ocupada' : 'Disponible';
         
         card.innerHTML = `
             <div class="room-icon">🛏️</div>
             <div class="room-number">${hab.numero}</div>
-            <div class="room-guest">${hab.huesped || 'Disponible'}</div>
-            <div class="room-status">Ingresar</div>
+            <span class="room-status ${statusClass}">${statusText}</span>
+            <div class="room-guest">${hab.huesped || ''}</div>
         `;
         
         container.appendChild(card);
