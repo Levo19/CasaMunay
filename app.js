@@ -17,7 +17,7 @@ let tabActual = 'bebidas';
 let config = {};
 let habitacionData = null;
 
-// ===== INICIALIZACIÓN =====
+// ===== INICIALIZACIÓN (OPTIMIZADA) =====
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         await obtenerConfig();
@@ -27,55 +27,112 @@ document.addEventListener('DOMContentLoaded', async () => {
         const esIndex = path.endsWith('index.html') || path.endsWith('/') || path.endsWith('/CasaMunay/');
         const esServices = path.includes('services.html');
 
-        // 1. Si estamos en el INDEX (Selección de habitación)
+        // ---------------------------------------------------------
+        // CASO 1: ESTAMOS EN EL INDEX (Selección de habitación)
+        // ---------------------------------------------------------
         if (esIndex) {
             console.log("Modo: Selección de Habitación");
-            // Solo cargamos las habitaciones para mostrar los botones
             const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
             const dataHab = await response.json();
             const habitacionesActivas = dataHab.habitaciones || [];
             
-            // Función que dibuja los botones (asegúrate de tenerla, ver abajo)
-            renderizarSeleccionHabitaciones(habitacionesActivas);
+            // Dibuja los botones
+            if (typeof renderizarSeleccionHabitaciones === 'function') {
+                renderizarSeleccionHabitaciones(habitacionesActivas);
+            }
             
             document.getElementById('loadingScreen').style.display = 'none';
-            return; // ¡IMPORTANTE! Aquí terminamos para no ejecutar lógica de carrito
+            return; 
         }
 
-        // 2. Si estamos en SERVICES (App de pedidos)
+        // ---------------------------------------------------------
+        // CASO 2: ESTAMOS EN SERVICES (App de pedidos)
+        // ---------------------------------------------------------
         if (esServices) {
-             // ... Aquí va la lógica de validar habitación, cargar servicios, etc ...
-             // Copia aquí el resto de tu lógica de validación que ya tenías
-             
+             // 1. Recuperamos parámetros
+             const urlParams = new URLSearchParams(window.location.search);
+             const roomParam = urlParams.get('room');
+
+             // 2. Validamos con el servidor (Seguridad)
+             // Nota: Esto tarda unos milisegundos, pero es necesario para validar fecha/estado
              const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
              const dataHab = await response.json();
              const habitacionesActivas = dataHab.habitaciones || [];
              
-             const urlParams = new URLSearchParams(window.location.search);
-             const roomParam = urlParams.get('room');
-             
              const habitacionValida = habitacionesActivas.find(h => String(h.numero) === String(roomParam));
 
              if (!habitacionValida) {
-                 // Si entra a servicios sin permiso, LO MANDAMOS AL INDEX
+                 console.warn('Habitación no válida o expirada. Redirigiendo...');
                  window.location.href = 'index.html'; 
                  return;
              }
 
-             // Si es válida, iniciamos la app
+             // 3. ¡ÉXITO! Iniciamos la App
              habitacionData = habitacionValida;
              sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(habitacionData));
+             
+             // --- TRUCO DE VELOCIDAD VISUAL ---
+             // Renderizamos el saludo y el botón de WhatsApp INMEDIATAMENTE
              mostrarInfoHabitacion();
-             await cargarServicios();
-             document.getElementById('loadingScreen').style.display = 'none';
              configurarWhatsApp();
+             
+             // Ocultamos la pantalla de carga AHORA MISMO
+             // (El usuario ya ve "Hola Juan Perez" y las pestañas, aunque los productos sigan cargando)
+             document.getElementById('loadingScreen').style.display = 'none';
+
+             // 4. Cargamos los servicios (Coca Cola, Tours, etc.)
+             // Esta función ya usa el caché del Index, así que debería ser instantánea
+             await cargarServicios();
         }
 
     } catch (error) {
         console.error('Error al inicializar:', error);
-        // Si hay error critico, nos quedamos en index o recargamos
+        // Si falla todo, mostramos error en pantalla
+        mostrarError('Error de conexión. Intenta recargar.');
     }
 });
+
+// ===== CARGAR SERVICIOS (CON CACHÉ DE VELOCIDAD) =====
+// Reemplaza tu función cargarServicios antigua por esta
+async function cargarServicios() {
+    try {
+        // A. INTENTO DE CARGA INSTANTÁNEA (CACHE DEL INDEX)
+        // Revisamos si el index.html ya nos dejó el menú guardado
+        const menuCache = sessionStorage.getItem('menuCache');
+        
+        if (menuCache) {
+            console.log('⚡ ¡Usando menú pre-cargado! (Velocidad máxima)');
+            const data = JSON.parse(menuCache);
+            if (data.servicios) {
+                servicios = data.servicios;
+                renderizarServicios();
+                return; // ¡Terminamos! No gastamos datos ni tiempo llamando a Google
+            }
+        }
+
+        // B. SI NO HAY CACHE, CARGA NORMAL (Backup)
+        console.log('🌐 No hay caché, descargando de Google...');
+        // Si estamos aquí, mostramos un pequeño spinner local si quieres, o dejamos que cargue
+        const response = await fetch(`${CONFIG.API_URL}?action=getServicios`);
+        const data = await response.json();
+        
+        if (data.servicios) {
+            servicios = data.servicios;
+            // Guardamos para el futuro
+            sessionStorage.setItem('menuCache', JSON.stringify(data));
+            renderizarServicios();
+        } else {
+            throw new Error('No se recibieron servicios');
+        }
+
+    } catch (error) {
+        console.error('Error al cargar servicios:', error);
+        // Solo mostramos error si no hay nada en pantalla
+        if (servicios.length === 0) {
+            mostrarError(`No se pudo cargar el menú: ${error.message}`);
+        }
+    }
+}
 
 // ===== OBTENER CONFIGURACIÓN =====
 async function obtenerConfig() {
