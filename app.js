@@ -1,7 +1,7 @@
 // ===== CONFIGURACIÓN =====
 const CONFIG = {
     // IMPORTANTE: Reemplaza esta URL con la URL de tu Apps Script después de desplegarlo
-    API_URL: 'https://script.google.com/macros/s/AKfycbzYOUR_SCRIPT_ID_HERE/exec'
+    API_URL: 'https://script.google.com/macros/s/AKfycbzKJ3J5cG8cJ4hKFPDmVYOfRTn9aqmkOnjyDfMabRhsNaFCO-7AQ2COPa9iGjJysMkL/exec'
 };
 
 // Habilitar modo debug para ver errores
