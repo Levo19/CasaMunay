@@ -4,7 +4,7 @@ const CONFIG = {
     API_URL: 'https://script.google.com/macros/s/AKfycbzKJ3J5cG8cJ4hKFPDmVYOfRTn9aqmkOnjyDfMabRhsNaFCO-7AQ2COPa9iGjJysMkL/exec'
 };
 
-// Habilitar modo debug para ver errores
+// Habilitar modo debug
 const DEBUG = true;
 function log(...args) {
     if (DEBUG) console.log(...args);
@@ -13,7 +13,7 @@ function log(...args) {
 // ===== ESTADO GLOBAL =====
 let servicios = [];
 let carrito = [];
-let categoriaActual = 'Todas';
+let tabActual = 'bebidas';
 let config = {};
 let habitacionData = null;
 
@@ -23,13 +23,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Obtener configuración
         await obtenerConfig();
         
-        // Obtener código QR de la URL
+        // Obtener número de habitación de la URL o sessionStorage
         const urlParams = new URLSearchParams(window.location.search);
-        const codigoQR = urlParams.get('room');
+        const roomParam = urlParams.get('room');
         
-        if (codigoQR) {
-            await obtenerDatosHabitacion(codigoQR);
+        if (roomParam) {
+            habitacionData = { numero: roomParam };
+            sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(habitacionData));
+        } else {
+            const stored = sessionStorage.getItem('habitacionSeleccionada');
+            if (stored) {
+                habitacionData = JSON.parse(stored);
+            }
         }
+        
+        if (!habitacionData) {
+            // Si no hay habitación, redirigir a selección
+            window.location.href = 'rooms.html';
+            return;
+        }
+        
+        // Mostrar info de habitación
+        mostrarInfoHabitacion();
         
         // Cargar servicios
         await cargarServicios();
@@ -42,33 +57,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         
     } catch (error) {
         console.error('Error al inicializar:', error);
-        alert('Error al cargar los servicios. Por favor, recarga la página.');
+        mostrarError('Error al cargar los servicios. Por favor, recarga la página.');
     }
 });
 
 // ===== OBTENER CONFIGURACIÓN =====
 async function obtenerConfig() {
     try {
+        log('Obteniendo configuración...');
         const response = await fetch(`${CONFIG.API_URL}?action=getConfig`);
         const data = await response.json();
         config = data;
+        log('Configuración obtenida:', config);
     } catch (error) {
         console.error('Error al obtener configuración:', error);
-    }
-}
-
-// ===== OBTENER DATOS DE HABITACIÓN =====
-async function obtenerDatosHabitacion(codigo) {
-    try {
-        const response = await fetch(`${CONFIG.API_URL}?action=getHabitacion&codigo=${codigo}`);
-        const data = await response.json();
-        
-        if (data.habitacion) {
-            habitacionData = data.habitacion;
-            mostrarInfoHabitacion();
-        }
-    } catch (error) {
-        console.error('Error al obtener datos de habitación:', error);
     }
 }
 
@@ -81,10 +83,8 @@ function mostrarInfoHabitacion() {
     document.getElementById('nombreHuesped').textContent = habitacionData.huesped || 'Estimado huésped';
     infoDiv.style.display = 'block';
     
-    // Pre-llenar formulario si hay datos
-    if (habitacionData.numero) {
-        document.getElementById('habitacionCliente').value = habitacionData.numero;
-    }
+    // Pre-llenar formulario
+    document.getElementById('habitacionCliente').value = habitacionData.numero;
     if (habitacionData.huesped) {
         document.getElementById('nombreCliente').value = habitacionData.huesped;
     }
@@ -100,75 +100,65 @@ async function cargarServicios() {
         const data = await response.json();
         log('Datos recibidos:', data);
         
-        if (data.servicios) {
+        if (data.servicios && data.servicios.length > 0) {
             servicios = data.servicios;
-            renderizarCategorias();
             renderizarServicios();
         } else {
             throw new Error('No se recibieron servicios');
         }
     } catch (error) {
         console.error('Error al cargar servicios:', error);
-        document.getElementById('loadingScreen').innerHTML = `
-            <div style="text-align: center; padding: 40px;">
-                <h2 style="color: #ef4444;">Error al cargar servicios</h2>
-                <p>Por favor, verifica la configuración del API_URL en app.js</p>
-                <p style="color: #6b7280; font-size: 14px;">Error: ${error.message}</p>
-                <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">
-                    Reintentar
-                </button>
-            </div>
-        `;
+        mostrarError(`Error al cargar servicios: ${error.message}`);
         throw error;
     }
 }
 
-// ===== RENDERIZAR CATEGORÍAS =====
-function renderizarCategorias() {
-    const categoriasSet = new Set(['Todas']);
-    servicios.forEach(servicio => categoriasSet.add(servicio.categoria));
+// ===== CAMBIAR TAB =====
+function cambiarTab(tab) {
+    tabActual = tab;
     
-    const categoriasContainer = document.getElementById('categorias');
-    categoriasContainer.innerHTML = '';
+    // Actualizar botones
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
     
-    categoriasSet.forEach(categoria => {
-        const btn = document.createElement('button');
-        btn.className = `categoria-btn ${categoria === categoriaActual ? 'active' : ''}`;
-        btn.textContent = categoria;
-        btn.onclick = () => filtrarPorCategoria(categoria);
-        categoriasContainer.appendChild(btn);
-    });
-}
-
-// ===== FILTRAR POR CATEGORÍA =====
-function filtrarPorCategoria(categoria) {
-    categoriaActual = categoria;
-    renderizarCategorias();
-    renderizarServicios();
+    // Actualizar contenido
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    document.getElementById(`tab-${tab}`).classList.add('active');
 }
 
 // ===== RENDERIZAR SERVICIOS =====
 function renderizarServicios() {
-    const container = document.getElementById('serviciosContainer');
+    renderizarBebidas();
+    renderizarTours();
+}
+
+// ===== RENDERIZAR BEBIDAS Y SNACKS =====
+function renderizarBebidas() {
+    const container = document.getElementById('serviciosBebidas');
     container.innerHTML = '';
     
-    const serviciosFiltrados = categoriaActual === 'Todas' 
-        ? servicios 
-        : servicios.filter(s => s.categoria === categoriaActual);
+    const bebidas = servicios.filter(s => s.categoria === 'Bebidas' || s.categoria === 'Snacks');
     
-    serviciosFiltrados.forEach(servicio => {
-        const card = crearCardServicio(servicio);
+    if (bebidas.length === 0) {
+        container.innerHTML = '<p style="text-align: center; padding: 40px; color: #6b7280;">No hay bebidas o snacks disponibles.</p>';
+        return;
+    }
+    
+    bebidas.forEach(servicio => {
+        const card = crearCardBebida(servicio);
         container.appendChild(card);
     });
 }
 
-// ===== CREAR CARD DE SERVICIO =====
-function crearCardServicio(servicio) {
+// ===== CREAR CARD DE BEBIDA/SNACK =====
+function crearCardBebida(servicio) {
     const card = document.createElement('div');
     card.className = 'servicio-card';
     
     const enCarrito = carrito.find(item => item.id === servicio.id);
     const cantidad = enCarrito ? enCarrito.cantidad : 0;
+    
+    const stockClass = servicio.stock < 10 && servicio.stock > 0 ? 'stock-bajo' : '';
     
     card.innerHTML = `
         <img src="${servicio.imagen || 'https://via.placeholder.com/300x180?text=' + encodeURIComponent(servicio.nombre)}" 
@@ -179,10 +169,62 @@ function crearCardServicio(servicio) {
             <span class="servicio-categoria">${servicio.categoria}</span>
             <h3 class="servicio-nombre">${servicio.nombre}</h3>
             <p class="servicio-descripcion">${servicio.descripcion}</p>
+            <span class="servicio-stock ${stockClass}">📦 Stock: ${servicio.stock}</span>
             <div class="servicio-footer">
                 <div class="servicio-precio">S/ ${servicio.precio.toFixed(2)}</div>
-                <button class="btn-agregar" onclick="agregarAlCarrito(${servicio.id})" ${servicio.stock === 0 ? 'disabled' : ''}>
-                    ${servicio.stock === 0 ? 'Agotado' : cantidad > 0 ? `En carrito (${cantidad})` : 'Agregar'}
+                <div class="cantidad-selector">
+                    <button onclick="cambiarCantidad(${servicio.id}, -1)" ${cantidad === 0 ? 'disabled' : ''}>−</button>
+                    <span>${cantidad}</span>
+                    <button onclick="cambiarCantidad(${servicio.id}, 1)" ${servicio.stock === 0 || cantidad >= servicio.stock ? 'disabled' : ''}>+</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return card;
+}
+
+// ===== RENDERIZAR TOURS =====
+function renderizarTours() {
+    const container = document.getElementById('serviciosTours');
+    container.innerHTML = '';
+    
+    const tours = servicios.filter(s => s.categoria === 'Tours');
+    
+    if (tours.length === 0) {
+        container.innerHTML = '<p style="text-align: center; padding: 40px; color: #6b7280;">No hay tours disponibles.</p>';
+        return;
+    }
+    
+    tours.forEach(servicio => {
+        const card = crearCardTour(servicio);
+        container.appendChild(card);
+    });
+}
+
+// ===== CREAR CARD DE TOUR =====
+function crearCardTour(servicio) {
+    const card = document.createElement('div');
+    card.className = 'tour-card';
+    
+    const enCarrito = carrito.find(item => item.id === servicio.id);
+    const agregado = enCarrito ? true : false;
+    
+    card.innerHTML = `
+        <img src="${servicio.imagen || 'https://via.placeholder.com/600x280?text=' + encodeURIComponent(servicio.nombre)}" 
+             alt="${servicio.nombre}" 
+             class="tour-imagen"
+             onerror="this.src='https://via.placeholder.com/600x280?text=' + encodeURIComponent('${servicio.nombre}')">
+        <div class="tour-body">
+            <h3 class="tour-nombre">${servicio.nombre}</h3>
+            <p class="tour-descripcion">${servicio.descripcion}</p>
+            <div class="tour-footer">
+                <div>
+                    <span class="tour-precio-label">Precio por persona</span>
+                    <div class="tour-precio">S/ ${servicio.precio.toFixed(2)}</div>
+                </div>
+                <button class="btn-agregar-tour ${agregado ? 'btn-agregado' : ''}" onclick="toggleTour(${servicio.id})">
+                    ${agregado ? '✓ Agregado' : '+ Agregar'}
                 </button>
             </div>
         </div>
@@ -191,26 +233,65 @@ function crearCardServicio(servicio) {
     return card;
 }
 
-// ===== AGREGAR AL CARRITO =====
-function agregarAlCarrito(servicioId) {
+// ===== TOGGLE TOUR (agregar/quitar) =====
+function toggleTour(servicioId) {
     const servicio = servicios.find(s => s.id === servicioId);
     if (!servicio) return;
     
     const itemExistente = carrito.find(item => item.id === servicioId);
     
     if (itemExistente) {
-        itemExistente.cantidad++;
+        // Quitar del carrito
+        carrito = carrito.filter(item => item.id !== servicioId);
     } else {
+        // Agregar al carrito
         carrito.push({
             id: servicio.id,
             nombre: servicio.nombre,
             precio: servicio.precio,
-            cantidad: 1
+            cantidad: 1,
+            categoria: servicio.categoria
         });
     }
     
     actualizarCarrito();
-    renderizarServicios();
+    renderizarTours();
+}
+
+// ===== CAMBIAR CANTIDAD (bebidas/snacks) =====
+function cambiarCantidad(servicioId, cambio) {
+    const servicio = servicios.find(s => s.id === servicioId);
+    if (!servicio) return;
+    
+    const itemExistente = carrito.find(item => item.id === servicioId);
+    
+    if (cambio > 0) {
+        // Agregar
+        if (itemExistente) {
+            if (itemExistente.cantidad < servicio.stock) {
+                itemExistente.cantidad++;
+            }
+        } else {
+            carrito.push({
+                id: servicio.id,
+                nombre: servicio.nombre,
+                precio: servicio.precio,
+                cantidad: 1,
+                categoria: servicio.categoria
+            });
+        }
+    } else {
+        // Quitar
+        if (itemExistente) {
+            itemExistente.cantidad--;
+            if (itemExistente.cantidad <= 0) {
+                carrito = carrito.filter(item => item.id !== servicioId);
+            }
+        }
+    }
+    
+    actualizarCarrito();
+    renderizarBebidas();
 }
 
 // ===== ACTUALIZAR CARRITO =====
@@ -240,31 +321,14 @@ function actualizarCarrito() {
         itemDiv.innerHTML = `
             <div class="carrito-item-info">
                 <div class="carrito-item-nombre">${item.nombre}</div>
-                <div class="carrito-item-precio">S/ ${item.precio.toFixed(2)} c/u</div>
+                <div class="carrito-item-precio">S/ ${item.precio.toFixed(2)} ${item.cantidad > 1 ? `x${item.cantidad}` : ''}</div>
             </div>
-            <div class="cantidad-controls">
-                <button class="btn-cantidad" onclick="cambiarCantidad(${item.id}, -1)">-</button>
-                <span>${item.cantidad}</span>
-                <button class="btn-cantidad" onclick="cambiarCantidad(${item.id}, 1)">+</button>
+            <div style="font-weight: 700; color: var(--primary);">
+                S/ ${(item.precio * item.cantidad).toFixed(2)}
             </div>
         `;
         carritoItems.appendChild(itemDiv);
     });
-}
-
-// ===== CAMBIAR CANTIDAD =====
-function cambiarCantidad(servicioId, cambio) {
-    const item = carrito.find(i => i.id === servicioId);
-    if (!item) return;
-    
-    item.cantidad += cambio;
-    
-    if (item.cantidad <= 0) {
-        carrito = carrito.filter(i => i.id !== servicioId);
-    }
-    
-    actualizarCarrito();
-    renderizarServicios();
 }
 
 // ===== TOGGLE CARRITO =====
@@ -285,7 +349,7 @@ function abrirFormulario() {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'resumen-item';
         itemDiv.innerHTML = `
-            <span>${item.nombre} x${item.cantidad}</span>
+            <span>${item.nombre} ${item.cantidad > 1 ? `x${item.cantidad}` : ''}</span>
             <span>S/ ${(item.precio * item.cantidad).toFixed(2)}</span>
         `;
         resumenItems.appendChild(itemDiv);
@@ -345,6 +409,7 @@ async function enviarPedido(event) {
             
             // Limpiar formulario
             document.getElementById('pedidoForm').reset();
+            document.getElementById('habitacionCliente').value = habitacionData.numero;
         } else {
             alert('Error al procesar el pedido. Por favor, intenta nuevamente.');
         }
@@ -371,12 +436,26 @@ function cerrarConfirmacion() {
 function configurarWhatsApp() {
     if (!config.whatsapp) return;
     
-    const mensaje = encodeURIComponent(`Hola! Soy huésped del ${config.nombreHotel}. Tengo una consulta...`);
+    const mensaje = encodeURIComponent(`Hola! Soy huésped de la habitación ${habitacionData.numero}. Tengo una consulta...`);
     const whatsappUrl = `https://wa.me/${config.whatsapp}?text=${mensaje}`;
     
     const whatsappBtn = document.getElementById('whatsappButton');
     whatsappBtn.href = whatsappUrl;
     whatsappBtn.style.display = 'flex';
+}
+
+// ===== MOSTRAR ERROR =====
+function mostrarError(mensaje) {
+    document.getElementById('loadingScreen').innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+            <div style="font-size: 4rem; margin-bottom: 20px;">⚠️</div>
+            <h2 style="color: #ef4444; margin-bottom: 15px;">Error</h2>
+            <p style="color: #6b7280;">${mensaje}</p>
+            <button onclick="location.reload()" style="margin-top: 20px; padding: 12px 30px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 1rem;">
+                Reintentar
+            </button>
+        </div>
+    `;
 }
 
 // ===== CERRAR MODALES AL HACER CLIC FUERA =====
