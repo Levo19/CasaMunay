@@ -98,6 +98,47 @@ body {
     margin-bottom: 5px;
 }
 
+/* Pestañas / Tabs */
+.tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+    background: white;
+    padding: 10px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.tab-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 15px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+    color: #6b7280;
+}
+
+.tab-btn:hover {
+    background: #f3f4f6;
+}
+
+.tab-btn.active {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: white;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
 /* Categorías */
 .categorias {
     display: flex;
@@ -127,7 +168,7 @@ body {
     transform: translateY(-2px);
 }
 
-/* Servicios Grid */
+/* Servicios Grid - Bebidas y Snacks (compacto) */
 .servicios-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -184,6 +225,21 @@ body {
     line-height: 1.4;
 }
 
+.servicio-stock {
+    display: inline-block;
+    background: #f3f4f6;
+    color: #4b5563;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin-bottom: 10px;
+}
+
+.stock-bajo {
+    background: #fef3c7;
+    color: #92400e;
+}
+
 .servicio-footer {
     display: flex;
     justify-content: space-between;
@@ -198,26 +254,128 @@ body {
     color: var(--primary);
 }
 
-.btn-agregar {
+.cantidad-selector {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f3f4f6;
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+
+.cantidad-selector button {
     background: var(--primary);
     color: white;
     border: none;
-    padding: 10px 20px;
-    border-radius: 8px;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
     cursor: pointer;
+    font-weight: 700;
+    font-size: 1.1rem;
+    transition: all 0.2s ease;
+}
+
+.cantidad-selector button:hover {
+    background: var(--primary-dark);
+}
+
+.cantidad-selector button:disabled {
+    background: #d1d5db;
+    cursor: not-allowed;
+}
+
+.cantidad-selector span {
+    min-width: 30px;
+    text-align: center;
     font-weight: 600;
+}
+
+/* Tours Grid (cards más grandes) */
+.tours-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 30px;
+    margin-bottom: 30px;
+}
+
+.tour-card {
+    background: white;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
     transition: all 0.3s ease;
 }
 
-.btn-agregar:hover {
-    background: var(--primary-dark);
-    transform: scale(1.05);
+.tour-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 35px rgba(0,0,0,0.2);
 }
 
-.btn-agregar:disabled {
-    background: #d1d5db;
-    cursor: not-allowed;
-    transform: scale(1);
+.tour-imagen {
+    width: 100%;
+    height: 280px;
+    object-fit: cover;
+}
+
+.tour-body {
+    padding: 30px;
+}
+
+.tour-nombre {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 15px;
+    color: var(--dark);
+}
+
+.tour-descripcion {
+    color: #4b5563;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.tour-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 20px;
+    border-top: 2px solid var(--border);
+}
+
+.tour-precio {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--primary);
+}
+
+.tour-precio-label {
+    font-size: 0.9rem;
+    color: #6b7280;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.btn-agregar-tour {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: white;
+    border: none;
+    padding: 14px 28px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+}
+
+.btn-agregar-tour:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-agregado {
+    background: linear-gradient(135deg, #10b981, #059669) !important;
 }
 
 /* Carrito Flotante */
@@ -509,8 +667,33 @@ body {
         font-size: 1.8rem;
     }
     
+    .tabs {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .tab-btn {
+        font-size: 1rem;
+    }
+    
     .servicios-grid {
         grid-template-columns: 1fr;
+    }
+    
+    .tours-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .tour-imagen {
+        height: 220px;
+    }
+    
+    .tour-body {
+        padding: 20px;
+    }
+    
+    .tour-nombre {
+        font-size: 1.5rem;
     }
     
     .carrito-flotante {
