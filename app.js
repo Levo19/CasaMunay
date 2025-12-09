@@ -20,61 +20,60 @@ let habitacionData = null;
 // ===== INICIALIZACIÓN =====
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // 1. Obtener configuración
         await obtenerConfig();
-        
-        // 2. Obtener lista de habitaciones VALIDAS desde el servidor
-        // Esto sirve para validar si la habitación sigue activa hoy
-        const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
-        const dataHab = await response.json();
-        const habitacionesActivas = dataHab.habitaciones || [];
 
-        // 3. Obtener número de habitación de la URL o sessionStorage
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomParam = urlParams.get('room');
-        
-        let habitacionEncontrada = null;
+        // Detectar en qué archivo estamos
+        const path = window.location.pathname;
+        const esIndex = path.endsWith('index.html') || path.endsWith('/') || path.endsWith('/CasaMunay/');
+        const esServices = path.includes('services.html');
 
-        // PRIORIDAD 1: Si viene por URL (QR)
-        if (roomParam) {
-            // Buscamos si el número de la URL existe en la lista de activas
-            habitacionEncontrada = habitacionesActivas.find(h => String(h.numero) === String(roomParam));
-        } 
-        // PRIORIDAD 2: Si ya estaba guardado en sesión
-        else {
-            const stored = sessionStorage.getItem('habitacionSeleccionada');
-            if (stored) {
-                const storedData = JSON.parse(stored);
-                // Validamos que la habitación guardada siga estando activa hoy
-                habitacionEncontrada = habitacionesActivas.find(h => String(h.numero) === String(storedData.numero));
-            }
-        }
-        
-        // 4. Decisión de acceso
-        if (!habitacionEncontrada) {
-            // Si no hay habitación válida (o ya expiró su fecha), redirigir a selección
-            console.log("Habitación no válida o expirada. Redirigiendo...");
-            window.location.href = 'rooms.html';
-            return;
+        // 1. Si estamos en el INDEX (Selección de habitación)
+        if (esIndex) {
+            console.log("Modo: Selección de Habitación");
+            // Solo cargamos las habitaciones para mostrar los botones
+            const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
+            const dataHab = await response.json();
+            const habitacionesActivas = dataHab.habitaciones || [];
+            
+            // Función que dibuja los botones (asegúrate de tenerla, ver abajo)
+            renderizarSeleccionHabitaciones(habitacionesActivas);
+            
+            document.getElementById('loadingScreen').style.display = 'none';
+            return; // ¡IMPORTANTE! Aquí terminamos para no ejecutar lógica de carrito
         }
 
-        // Si es válida, actualizamos los datos en memoria y sesión (incluyendo el nombre del huésped)
-        habitacionData = habitacionEncontrada;
-        sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(habitacionData));
-        
-        // 5. Cargar interfaz
-        mostrarInfoHabitacion();
-        await cargarServicios();
-        
-        // Ocultar pantalla de carga
-        document.getElementById('loadingScreen').style.display = 'none';
-        
-        // Mostrar botón de WhatsApp
-        configurarWhatsApp();
-        
+        // 2. Si estamos en SERVICES (App de pedidos)
+        if (esServices) {
+             // ... Aquí va la lógica de validar habitación, cargar servicios, etc ...
+             // Copia aquí el resto de tu lógica de validación que ya tenías
+             
+             const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
+             const dataHab = await response.json();
+             const habitacionesActivas = dataHab.habitaciones || [];
+             
+             const urlParams = new URLSearchParams(window.location.search);
+             const roomParam = urlParams.get('room');
+             
+             const habitacionValida = habitacionesActivas.find(h => String(h.numero) === String(roomParam));
+
+             if (!habitacionValida) {
+                 // Si entra a servicios sin permiso, LO MANDAMOS AL INDEX
+                 window.location.href = 'index.html'; 
+                 return;
+             }
+
+             // Si es válida, iniciamos la app
+             habitacionData = habitacionValida;
+             sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(habitacionData));
+             mostrarInfoHabitacion();
+             await cargarServicios();
+             document.getElementById('loadingScreen').style.display = 'none';
+             configurarWhatsApp();
+        }
+
     } catch (error) {
         console.error('Error al inicializar:', error);
-        mostrarError('Error al conectar con el hotel. Por favor, recarga la página.');
+        // Si hay error critico, nos quedamos en index o recargamos
     }
 });
 
@@ -501,4 +500,32 @@ window.onclick = function(event) {
     if (event.target === modalConfirmacion) {
         cerrarConfirmacion();
     }
+}
+// ===== RENDERIZAR BOTONES DE SELECCIÓN (PARA INDEX.HTML) =====
+function renderizarSeleccionHabitaciones(habitaciones) {
+    const container = document.getElementById('listaHabitaciones'); // Asegúrate que tu index.html tenga un div con este ID
+    if (!container) return;
+
+    container.innerHTML = ''; // Limpiar
+
+    if (habitaciones.length === 0) {
+        container.innerHTML = '<p class="no-rooms">No hay habitaciones disponibles para check-in hoy.</p>';
+        return;
+    }
+
+    habitaciones.forEach(hab => {
+        // Creamos el botón/tarjeta que lleva a services.html
+        const card = document.createElement('a');
+        card.className = 'room-card'; // Asegúrate de tener estilos para esta clase
+        card.href = `services.html?room=${hab.numero}`; // EL ENLACE MÁGICO
+        
+        card.innerHTML = `
+            <div class="room-icon">🛏️</div>
+            <div class="room-number">${hab.numero}</div>
+            <div class="room-guest">${hab.huesped || 'Disponible'}</div>
+            <div class="room-status">Ingresar</div>
+        `;
+        
+        container.appendChild(card);
+    });
 }
