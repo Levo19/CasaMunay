@@ -283,21 +283,28 @@
             errorMessage.textContent = mensaje;
         }
 
-        // ===== PRE-CARGA AGRESIVA (Sin esperas) =====
-document.addEventListener('DOMContentLoaded', () => {
-    // Sin setTimeout. Ejecutamos inmediatamente.
-    console.log("🚀 Iniciando pre-carga inmediata...");
-    
-    fetch(`${API_URL}?action=getServicios`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.servicios) {
-                sessionStorage.setItem('menuCache', JSON.stringify(data));
-                console.log("✅ Menú descargado y guardado en cache");
-            }
-        })
-        .catch(e => console.log("La pre-carga sigue en proceso o falló...", e));
-});
+        // ===== PRE-CARGA TOTAL (Servicios + Configuración) =====
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("🚀 Iniciando pre-carga total...");
+
+            // 1. Pre-cargar Servicios
+            fetch(`${API_URL}?action=getServicios`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.servicios) {
+                        sessionStorage.setItem('menuCache', JSON.stringify(data));
+                        console.log("✅ Menú guardado");
+                    }
+                });
+
+            // 2. Pre-cargar Configuración (WhatsApp, etc)
+            fetch(`${API_URL}?action=getConfig`)
+                .then(r => r.json())
+                .then(data => {
+                    sessionStorage.setItem('configCache', JSON.stringify(data));
+                    console.log("✅ Configuración guardada");
+                });
+        });
     </script>
 </body>
 </html>
