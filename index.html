@@ -282,6 +282,28 @@
             errorContainer.style.display = 'block';
             errorMessage.textContent = mensaje;
         }
+
+        // ===== NUEVO: PRE-CARGAR SERVICIOS =====
+        // Esto descarga el menú mientras el usuario mira las habitaciones
+        // para que la siguiente página cargue instantáneo.
+        document.addEventListener('DOMContentLoaded', () => {
+            // Esperamos un poquito para no frenar la carga de las habitaciones
+            setTimeout(async () => {
+                try {
+                    console.log("Iniciando pre-carga de servicios...");
+                    const response = await fetch(`${API_URL}?action=getServicios`);
+                    const data = await response.json();
+                    
+                    if (data.servicios) {
+                        // Guardamos el menú en la memoria del navegador
+                        sessionStorage.setItem('menuCache', JSON.stringify(data));
+                        console.log("¡Menú pre-cargado y listo!");
+                    }
+                } catch (e) {
+                    console.log("No se pudo pre-cargar (no pasa nada, se cargará después)");
+                }
+            }, 1000); // Se ejecuta 1 segundo después de abrir la página
+        });
     </script>
 </body>
 </html>
