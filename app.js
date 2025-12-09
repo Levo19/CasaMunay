@@ -100,12 +100,12 @@ async function cargarServicios() {
         const data = await response.json();
         log('Datos recibidos:', data);
         
-        if (data.servicios && data.servicios.length > 0) {
-            servicios = data.servicios;
-            renderizarServicios();
-        } else {
-            throw new Error('No se recibieron servicios');
-        }
+        if (data.servicios) {
+    servicios = data.servicios; // Guardamos aunque esté vacío
+    renderizarServicios(); // Renderizamos (las funciones de render ya manejan arrays vacíos)
+} else {
+    throw new Error('Formato de datos incorrecto');
+}
     } catch (error) {
         console.error('Error al cargar servicios:', error);
         mostrarError(`Error al cargar servicios: ${error.message}`);
