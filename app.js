@@ -121,29 +121,39 @@ function mostrarInfoHabitacion() {
         inputNombre.value = habitacionData.huesped;
     }
 }
-// ===== CARGAR SERVICIOS =====
+// ===== CARGAR SERVICIOS (OPTIMIZADO) =====
 async function cargarServicios() {
     try {
-        log('Cargando servicios desde:', CONFIG.API_URL);
-        const response = await fetch(`${CONFIG.API_URL}?action=getServicios`);
-        log('Response status:', response.status);
+        // 1. INTENTO DE CARGA INSTANTÁNEA (CACHE)
+        const menuCache = sessionStorage.getItem('menuCache');
         
+        if (menuCache) {
+            log('¡Usando menú pre-cargado! Velocidad luz ⚡');
+            const data = JSON.parse(menuCache);
+            servicios = data.servicios;
+            renderizarServicios();
+            return; // ¡Terminamos! No hace falta llamar a Google
+        }
+
+        // 2. SI NO HAY CACHE, CARGA NORMAL (LENTA)
+        log('No hay caché, cargando desde Google...');
+        const response = await fetch(`${CONFIG.API_URL}?action=getServicios`);
         const data = await response.json();
-        log('Datos recibidos:', data);
         
         if (data.servicios) {
-    servicios = data.servicios; // Guardamos aunque esté vacío
-    renderizarServicios(); // Renderizamos (las funciones de render ya manejan arrays vacíos)
-} else {
-    throw new Error('Formato de datos incorrecto');
-}
+            servicios = data.servicios;
+            // Guardamos para la próxima (por si recarga la página)
+            sessionStorage.setItem('menuCache', JSON.stringify(data));
+            renderizarServicios();
+        } else {
+            throw new Error('Formato de datos incorrecto');
+        }
+
     } catch (error) {
         console.error('Error al cargar servicios:', error);
         mostrarError(`Error al cargar servicios: ${error.message}`);
-        throw error;
     }
 }
-
 // ===== CAMBIAR TAB =====
 function cambiarTab(tab) {
     tabActual = tab;
