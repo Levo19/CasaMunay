@@ -17,78 +17,134 @@ let tabActual = 'bebidas';
 let config = {};
 let habitacionData = null;
 
-// ===== INICIALIZACIÓN (OPTIMIZADA) =====
+// ===== INICIALIZACIÓN (MODO ULTRA RÁPIDO) =====
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        // Intentamos cargar config de memoria primero (instantáneo)
         await obtenerConfig();
 
-        // Detectar en qué archivo estamos
         const path = window.location.pathname;
         const esIndex = path.endsWith('index.html') || path.endsWith('/') || path.endsWith('/CasaMunay/');
         const esServices = path.includes('services.html');
 
         // ---------------------------------------------------------
-        // CASO 1: ESTAMOS EN EL INDEX (Selección de habitación)
+        // CASO 1: INDEX
         // ---------------------------------------------------------
         if (esIndex) {
-            console.log("Modo: Selección de Habitación");
+            console.log("Modo: Selección");
             const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
             const dataHab = await response.json();
-            const habitacionesActivas = dataHab.habitaciones || [];
             
-            // Dibuja los botones
             if (typeof renderizarSeleccionHabitaciones === 'function') {
-                renderizarSeleccionHabitaciones(habitacionesActivas);
+                renderizarSeleccionHabitaciones(dataHab.habitaciones || []);
             }
             
-            // Si existe la pantalla de carga, la quitamos
             const loading = document.getElementById('loadingScreen');
             if (loading) loading.style.display = 'none';
             return; 
         }
 
         // ---------------------------------------------------------
-        // CASO 2: ESTAMOS EN SERVICES (App de pedidos)
+        // CASO 2: SERVICES (App)
         // ---------------------------------------------------------
         if (esServices) {
-             // 1. Recuperamos parámetros
              const urlParams = new URLSearchParams(window.location.search);
              const roomParam = urlParams.get('room');
 
-             // 2. Validamos con el servidor (Seguridad)
-             const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
-             const dataHab = await response.json();
-             const habitacionesActivas = dataHab.habitaciones || [];
-             
-             const habitacionValida = habitacionesActivas.find(h => String(h.numero) === String(roomParam));
+             // ESTRATEGIA OPTIMISTA:
+             // 1. ¿Tenemos la habitación en memoria porque venimos del Index?
+             const storedRoom = sessionStorage.getItem('habitacionSeleccionada');
+             let habitacionEnMemoria = storedRoom ? JSON.parse(storedRoom) : null;
 
-             if (!habitacionValida) {
-                 console.warn('Habitación no válida o expirada. Redirigiendo...');
-                 window.location.href = 'index.html'; 
-                 return;
+             // Si el numero coincide con la URL, mostramos la App YA (en 0 segundos)
+             if (habitacionEnMemoria && String(habitacionEnMemoria.numero) === String(roomParam)) {
+                 console.log("🚀 Carga Optimista: Mostrando interfaz inmediatamente");
+                 habitacionData = habitacionEnMemoria;
+                 mostrarInfoHabitacion();
+                 configurarWhatsApp();
+                 document.getElementById('loadingScreen').style.display = 'none'; // ¡ADIOS SPINNER!
+                 
+                 // Cargamos servicios visualmente (ya están en caché también)
+                 cargarServicios();
+                 
+                 // 2. VALIDACIÓN SILENCIOSA (Seguridad en segundo plano)
+                 // Verificamos que la habitación siga siendo válida realmente
+                 validarHabitacionSegundoPlano(roomParam);
+                 
+             } else {
+                 // Si entra directo por QR (sin memoria), toca esperar la validación normal
+                 console.log("🛡️ Entrada directa/QR: Validando seguridad...");
+                 await validarYEntrar(roomParam);
              }
-
-             // 3. ¡ÉXITO! Iniciamos la App
-             habitacionData = habitacionValida;
-             sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(habitacionData));
-             
-             // --- TRUCO DE VELOCIDAD VISUAL ---
-             // Renderizamos el saludo y el botón de WhatsApp INMEDIATAMENTE
-             mostrarInfoHabitacion();
-             configurarWhatsApp();
-             
-             // Ocultamos la pantalla de carga AHORA MISMO
-             document.getElementById('loadingScreen').style.display = 'none';
-
-             // 4. Cargamos los servicios (Coca Cola, Tours, etc.)
-             await cargarServicios();
         }
 
     } catch (error) {
-        console.error('Error al inicializar:', error);
-        mostrarError('Error de conexión. Intenta recargar.');
+        console.error('Error init:', error);
+        mostrarError('Error de conexión.');
     }
 });
+
+// ===== FUNCIONES AUXILIARES DE CARGA =====
+
+// Valida normal (para cuando entran por QR directo)
+async function validarYEntrar(roomParam) {
+    const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
+    const data = await response.json();
+    const validas = data.habitaciones || [];
+    const habitacion = validas.find(h => String(h.numero) === String(roomParam));
+
+    if (!habitacion) {
+        window.location.href = 'index.html';
+        return;
+    }
+
+    habitacionData = habitacion;
+    sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(habitacionData));
+    
+    mostrarInfoHabitacion();
+    configurarWhatsApp();
+    document.getElementById('loadingScreen').style.display = 'none';
+    await cargarServicios();
+}
+
+// Valida en segundo plano (si ya dejamos entrar al usuario)
+async function validarHabitacionSegundoPlano(roomParam) {
+    try {
+        const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
+        const data = await response.json();
+        const validas = data.habitaciones || [];
+        const sigueValida = validas.find(h => String(h.numero) === String(roomParam));
+
+        if (!sigueValida) {
+            alert("Tu sesión ha expirado o la habitación ya no está disponible.");
+            window.location.href = 'index.html';
+        }
+    } catch (e) {
+        console.error("No se pudo re-validar, pero dejamos seguir al usuario.", e);
+    }
+}
+
+// ===== OBTENER CONFIGURACIÓN (CON CACHÉ) =====
+async function obtenerConfig() {
+    try {
+        // 1. Intentar leer de caché
+        const cached = sessionStorage.getItem('configCache');
+        if (cached) {
+            config = JSON.parse(cached);
+            console.log("⚡ Config cargada de caché");
+            return;
+        }
+
+        // 2. Si no hay, pedir a Google
+        const response = await fetch(`${CONFIG.API_URL}?action=getConfig`);
+        const data = await response.json();
+        config = data;
+        // Guardar para la próxima
+        sessionStorage.setItem('configCache', JSON.stringify(data));
+    } catch (error) {
+        console.error('Error config:', error);
+    }
+}
 
 // ===== CARGAR SERVICIOS (CON CACHÉ DE VELOCIDAD) =====
 async function cargarServicios() {
