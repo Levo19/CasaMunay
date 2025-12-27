@@ -87,25 +87,80 @@ function copiarWifi() {
 // ===== DATA: VALIDATION =====
 async function validarYEntrar(token) {
     try {
-        // Ahora llamamos a getHabitacion con el TOKEN (no el número directo)
+        document.getElementById('loadingScreen').style.display = 'flex';
+        document.getElementById('loadingScreen').style.opacity = '1';
+
+        // 1. Check básico de sala
         const res = await fetch(`${CONFIG.API_URL}?action=getHabitacion&codigo=${token}`);
         const data = await res.json();
 
         if (data.habitacion) {
-            habitacionData = data.habitacion;
-            habitacionData.token = token; // Guardamos el token para referencias futuras
-            sessionStorage.setItem('habitacionData', JSON.stringify(habitacionData));
-            initApp();
+            // CASO A: Ya venía autenticado (token de sesión) o backend abierto
+            if (data.habitacion.huesped) {
+                habitacionData = data.habitacion;
+                habitacionData.token = token;
+                sessionStorage.setItem('habitacionData', JSON.stringify(habitacionData));
+                initApp();
+            }
+            // CASO B: Requiere verificación de identidad (Login)
+            else if (data.habitacion.requiereVerificacion) {
+                document.getElementById('loadingScreen').style.display = 'none';
+                mostrarAuth(token);
+            }
         } else {
-            // Si el backend dice error (403/404), mostramos y salimos
+            // Error (token invalido)
             if (data.error) showToast(`❌ ${data.error}`);
-            setTimeout(() => {
-                window.location.href = 'index.html';
-            }, 2000);
+            setTimeout(() => { window.location.href = 'index.html'; }, 2000);
         }
     } catch (e) {
         console.error(e);
         showToast('❌ Error de conexión');
+        document.getElementById('loadingScreen').style.display = 'none';
+    }
+}
+
+// ===== AUTH LOGIC =====
+function mostrarAuth(token) {
+    document.getElementById('modalAuth').style.display = 'flex';
+    document.getElementById('tokenAuth').value = token;
+}
+
+async function verificarIdentidad(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnAuth');
+    const err = document.getElementById('authError');
+    const input = document.getElementById('inputApellidoAuth');
+    const token = document.getElementById('tokenAuth').value;
+
+    btn.disabled = true;
+    btn.innerText = 'Verificando...';
+    err.style.display = 'none';
+
+    try {
+        const res = await fetch(`${CONFIG.API_URL}?action=verificarHuesped&codigo=${token}&apellido=${encodeURIComponent(input.value)}`);
+        const data = await res.json();
+
+        if (data.success && data.habitacion) {
+            // ÉXITO: Guardamos sesión completa
+            habitacionData = data.habitacion;
+            habitacionData.token = token; // Aseguramos token
+            sessionStorage.setItem('habitacionData', JSON.stringify(habitacionData));
+
+            document.getElementById('modalAuth').style.display = 'none';
+            initApp();
+        } else {
+            // FALLO
+            err.innerText = data.error || 'Apellido incorrecto';
+            err.style.display = 'block';
+            input.value = '';
+            input.focus();
+        }
+    } catch (error) {
+        err.innerText = 'Error de conexión';
+        err.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'Verificar';
     }
 }
 
