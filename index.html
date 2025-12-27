@@ -1,310 +1,141 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seleccionar Habitación - Hotel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Casa Munay - Bienvenida</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .header {
-            background: white;
-            padding: 40px 30px;
-            border-radius: 20px;
-            text-align: center;
-            margin-bottom: 40px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        }
-
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .subtitle {
-            color: #6b7280;
-            font-size: 1.1rem;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 60px 20px;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        }
-
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .rooms-grid {
+        /* Estilos específicos para Index */
+        .room-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 25px;
-            margin-bottom: 40px;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            /* Más compacto */
+            gap: 15px;
+            margin-top: 20px;
         }
 
         .room-card {
             background: white;
-            border-radius: 16px;
-            padding: 30px;
+            border-radius: var(--radius-m);
+            padding: 20px 10px;
             text-align: center;
             cursor: pointer;
+            box-shadow: var(--shadow-card);
             transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            position: relative;
+            overflow: hidden;
         }
 
         .room-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 12px 30px rgba(102, 126, 234, 0.3);
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-soft);
         }
 
-        .room-icon {
-            font-size: 3rem;
-            margin-bottom: 15px;
+        .room-card.ocupada {
+            border: 2px solid var(--primary);
+            background: #F0F9FF;
         }
 
         .room-number {
             font-size: 2rem;
-            font-weight: 700;
-            color: #1f2937;
-            margin-bottom: 8px;
+            font-weight: 800;
+            color: var(--text-main);
         }
 
         .room-status {
-            display: inline-block;
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 5px;
+            color: var(--text-muted);
         }
 
-        .status-disponible {
-            background: #d1fae5;
-            color: #065f46;
+        .room-card.ocupada .room-status {
+            color: var(--primary);
+            font-weight: 700;
         }
 
-        .status-ocupada {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .room-guest {
-            margin-top: 12px;
-            color: #6b7280;
-            font-size: 0.95rem;
-        }
-
-        .error-message {
-            background: white;
-            padding: 40px;
-            border-radius: 20px;
-            text-align: center;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        }
-
-        .error-icon {
-            font-size: 4rem;
-            margin-bottom: 20px;
-        }
-
-        .error-message h2 {
-            color: #ef4444;
-            margin-bottom: 15px;
-        }
-
-        .btn-retry {
-            margin-top: 20px;
-            padding: 12px 30px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .btn-retry:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-        }
-
-        @media (max-width: 768px) {
-            .header h1 {
-                font-size: 1.8rem;
-            }
-            
-            .rooms-grid {
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-                gap: 15px;
-            }
-
-            .room-card {
-                padding: 20px;
-            }
-
-            .room-number {
-                font-size: 1.5rem;
-            }
+        .guest-name {
+            font-size: 0.85rem;
+            color: var(--secondary);
+            margin-top: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
     </style>
 </head>
+
 <body>
+    <div id="loadingScreen" class="loading-screen">
+        <div class="spinner"></div>
+    </div>
+
     <div class="container">
-        <div class="header">
-            <h1>🏨 Selecciona tu Habitación</h1>
-            <p class="subtitle">Elige tu habitación para acceder a los servicios adicionales</p>
-        </div>
+        <header class="header-hero" style="text-align: center; margin-bottom: 40px;">
+            <div class="greeting">Bienvenido a</div>
+            <div class="user-name" style="font-size: 2.5rem;">Casa Munay</div>
+            <p style="color: var(--text-muted); margin-top: 10px;">Selecciona tu habitación para comenzar</p>
+        </header>
 
-        <div id="loadingContainer" class="loading">
-            <div class="loader"></div>
-            <p>Cargando habitaciones disponibles...</p>
-        </div>
+        <div id="roomsContainer" class="room-grid"></div>
 
-        <div id="roomsContainer" class="rooms-grid" style="display: none;"></div>
-
-        <div id="errorContainer" class="error-message" style="display: none;">
-            <div class="error-icon">⚠️</div>
-            <h2>Error al cargar habitaciones</h2>
-            <p id="errorMessage">Por favor, verifica la configuración e intenta nuevamente.</p>
-            <button class="btn-retry" onclick="location.reload()">Reintentar</button>
-        </div>
+        <p id="errorMsg" style="text-align: center; color: #ef4444; margin-top: 20px; display: none;"></p>
     </div>
 
     <script>
-        // IMPORTANTE: Usa la misma URL de tu Apps Script
+        // 🚨 CONFIGURACIÓN TEMPORAL (Debe coincidir con app.js)
         const API_URL = 'https://script.google.com/macros/s/AKfycbzKJ3J5cG8cJ4hKFPDmVYOfRTn9aqmkOnjyDfMabRhsNaFCO-7AQ2COPa9iGjJysMkL/exec';
 
-        document.addEventListener('DOMContentLoaded', cargarHabitaciones);
-
-        async function cargarHabitaciones() {
+        document.addEventListener('DOMContentLoaded', async () => {
             try {
-                const response = await fetch(`${API_URL}?action=getHabitaciones`);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                
-                if (data.habitaciones && data.habitaciones.length > 0) {
-                    mostrarHabitaciones(data.habitaciones);
-                } else {
-                    throw new Error('No se encontraron habitaciones');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                mostrarError(error.message);
-            }
-        }
+                const res = await fetch(`${API_URL}?action=getHabitaciones`);
+                const data = await res.json();
 
-        function mostrarHabitaciones(habitaciones) {
+                if (data.habitaciones) {
+                    renderRooms(data.habitaciones);
+                } else {
+                    showError('No se encontraron habitaciones');
+                }
+            } catch (e) {
+                showError('Error de conexión');
+            } finally {
+                document.getElementById('loadingScreen').style.opacity = '0';
+                setTimeout(() => document.getElementById('loadingScreen').style.display = 'none', 500);
+            }
+        });
+
+        function renderRooms(list) {
             const container = document.getElementById('roomsContainer');
-            const loadingContainer = document.getElementById('loadingContainer');
-            
-            loadingContainer.style.display = 'none';
-            container.style.display = 'grid';
-            
             container.innerHTML = '';
-            
-            habitaciones.forEach(habitacion => {
-                const card = document.createElement('div');
-                card.className = 'room-card';
-                card.onclick = () => seleccionarHabitacion(habitacion);
-                
-                const statusClass = habitacion.estado === 'ocupada' ? 'status-ocupada' : 'status-disponible';
-                const statusText = habitacion.estado === 'ocupada' ? 'Ocupada' : 'Disponible';
-                
-                card.innerHTML = `
-                    <div class="room-icon">🛏️</div>
-                    <div class="room-number">${habitacion.numero}</div>
-                    <span class="room-status ${statusClass}">${statusText}</span>
-                    ${habitacion.huesped ? `<div class="room-guest">${habitacion.huesped}</div>` : ''}
+
+            list.forEach(h => {
+                const div = document.createElement('div');
+                const isOccupied = h.estado === 'ocupada';
+                div.className = `room-card ${isOccupied ? 'ocupada' : ''}`;
+                div.onclick = () => {
+                    sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(h));
+                    window.location.href = `services.html?room=${h.numero}`;
+                };
+
+                div.innerHTML = `
+                    <div class="room-number">${h.numero}</div>
+                    <div class="room-status">${isOccupied ? 'Ocupada' : 'Disponible'}</div>
+                    ${h.huesped ? `<div class="guest-name">${h.huesped}</div>` : ''}
                 `;
-                
-                container.appendChild(card);
+                container.appendChild(div);
             });
         }
 
-        function seleccionarHabitacion(habitacion) {
-            // Guardar datos en sessionStorage (Opcional, pero útil)
-            sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(habitacion));
-            
-            // CORRECCIÓN IMPORTANTE: 
-            // Redirigir a 'services.html' que es donde está tu App de pedidos (app.js)
-            window.location.href = `services.html?room=${habitacion.numero}`;
+        function showError(msg) {
+            const el = document.getElementById('errorMsg');
+            el.innerText = msg;
+            el.style.display = 'block';
         }
-
-        function mostrarError(mensaje) {
-            const loadingContainer = document.getElementById('loadingContainer');
-            const errorContainer = document.getElementById('errorContainer');
-            const errorMessage = document.getElementById('errorMessage');
-            
-            loadingContainer.style.display = 'none';
-            errorContainer.style.display = 'block';
-            errorMessage.textContent = mensaje;
-        }
-
-        // ===== PRE-CARGA TOTAL (Servicios + Configuración) =====
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log("🚀 Iniciando pre-carga total...");
-
-            // 1. Pre-cargar Servicios
-            fetch(`${API_URL}?action=getServicios`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.servicios) {
-                        sessionStorage.setItem('menuCache', JSON.stringify(data));
-                        console.log("✅ Menú guardado");
-                    }
-                });
-
-            // 2. Pre-cargar Configuración (WhatsApp, etc)
-            fetch(`${API_URL}?action=getConfig`)
-                .then(r => r.json())
-                .then(data => {
-                    sessionStorage.setItem('configCache', JSON.stringify(data));
-                    console.log("✅ Configuración guardada");
-                });
-        });
     </script>
 </body>
+
 </html>
