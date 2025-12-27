@@ -362,13 +362,32 @@ function abrirCheckout() {
     document.getElementById('cartTotal').innerText = `S/ ${total.toFixed(2)}`;
 
     if (habitacionData) {
-        document.getElementById('inputHabitacion').value = habitacionData.numero;
-        document.getElementById('inputNombre').value = habitacionData.huesped;
+        // Logica robusta para numero de habitacion (Fallback si no viene del backend)
+        let roomNum = habitacionData.numero;
+        if (!roomNum && habitacionData.token) {
+            const match = habitacionData.token.match(/\d+/);
+            if (match) roomNum = match[0];
+        }
+
+        document.getElementById('inputHabitacion').value = roomNum || '---';
+        document.getElementById('inputNombre').value = habitacionData.huesped || '';
     }
 }
 
 async function enviarPedido(e) {
     e.preventDefault();
+
+    // VALIDACIÓN OBLIGATORIA DE EMAIL
+    const email = document.getElementById('inputEmail').value.trim();
+    if (!email) {
+        showToast('⚠️ El correo es obligatorio para recibir la confirmación');
+        document.getElementById('inputEmail').focus();
+        // Efecto visual de error
+        document.getElementById('inputEmail').style.border = "2px solid #ef4444";
+        setTimeout(() => document.getElementById('inputEmail').style.border = "1px solid #E2E8F0", 3000);
+        return;
+    }
+
     const btn = document.getElementById('btnSubmit');
     btn.disabled = true;
     btn.innerText = 'Enviando...';
@@ -376,7 +395,7 @@ async function enviarPedido(e) {
     const pedido = {
         nombre: document.getElementById('inputNombre').value,
         habitacion: document.getElementById('inputHabitacion').value,
-        email: document.getElementById('inputEmail').value,
+        email: email,
         notas: document.getElementById('inputNotas').value,
         servicios: carrito,
         total: carrito.reduce((sum, i) => sum + (i.precio * i.cantidad), 0)
