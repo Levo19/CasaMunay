@@ -1,7 +1,7 @@
 // ===== CONFIGURACIÓN =====
 const CONFIG = {
     // 🚨 REEMPLAZA ESTO DESPUÉS DEL DESPLIEGUE FINAL
-    API_URL: 'https://script.google.com/macros/s/AKfycbzKJ3J5cG8cJ4hKFPDmVYOfRTn9aqmkOnjyDfMabRhsNaFCO-7AQ2COPa9iGjJysMkL/exec'
+    API_URL: 'https://script.google.com/macros/s/AKfycbx1BgTBtWTqpZOwS7IEC56dqd_Hj_d_gF03Vk1vUIN8ZGpY9f6e7C9a56S_IjGZ53oe/exec'
 };
 
 // State
