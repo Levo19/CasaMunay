@@ -15,25 +15,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Check URL params
     const urlParams = new URLSearchParams(window.location.search);
-    const roomParam = urlParams.get('room');
+    const qrToken = urlParams.get('room'); // Mantenemos "room" como nombre de param por compatibilidad con QR impreso? 
+    // NO, el usuario dijo "servicios.html?room=101" es inseguro.
+    // Cambiamos a buscar "q" o "token".
 
-    // Check local storage for speed
-    const storedRoom = sessionStorage.getItem('habitacionSeleccionada');
+    const tokenParam = urlParams.get('q') || urlParams.get('token') || urlParams.get('room');
+    // NOTA: Aceptamos 'room' temporalmente si el usuario YA imprimió QRs con el código en vez del número.
+    // Pero lo ideal es ?q=CODIGO_SECRETO
 
-    if (storedRoom) {
-        habitacionData = JSON.parse(storedRoom);
-        if (roomParam && String(habitacionData.numero) !== String(roomParam)) {
-            // URL override
-            await validarYEntrar(roomParam);
+    // Check local storage
+    const storedData = sessionStorage.getItem('habitacionData');
+
+    if (storedData) {
+        habitacionData = JSON.parse(storedData);
+        // Validar si el token de la URL es diferente al guardado
+        if (tokenParam && habitacionData.token !== tokenParam) {
+            await validarYEntrar(tokenParam);
         } else {
             initApp();
-            validarBackground(habitacionData.numero);
+            validarSesionBackground();
         }
-    } else if (roomParam) {
-        await validarYEntrar(roomParam);
+    } else if (tokenParam) {
+        await validarYEntrar(tokenParam);
     } else {
-        // No room? Redirect to index (Selector)
-        // Solo si estamos en services.html
+        // Sin token, adios.
         if (window.location.pathname.includes('services.html')) {
             window.location.href = 'index.html';
         }
@@ -80,38 +85,42 @@ function copiarWifi() {
 }
 
 // ===== DATA: VALIDATION =====
-async function validarYEntrar(room) {
+async function validarYEntrar(token) {
     try {
-        const res = await fetch(`${CONFIG.API_URL}?action=getHabitacion&codigo=${room}`); // OJO: Tu backend usa 'getHabitaciones' y filtra, o 'getHabitacion' por QR.
-        // Simulamos logica de app.js anterior que usaba getHabitaciones para todo
-        // Pero idealmente usaria getHabitaciones
+        // Ahora llamamos a getHabitacion con el TOKEN (no el número directo)
+        const res = await fetch(`${CONFIG.API_URL}?action=getHabitacion&codigo=${token}`);
+        const data = await res.json();
 
-        const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
-        const data = await response.json();
-        const found = data.habitaciones.find(h => String(h.numero) === String(room));
-
-        if (found) {
-            habitacionData = found;
-            sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(found));
+        if (data.habitacion) {
+            habitacionData = data.habitacion;
+            habitacionData.token = token; // Guardamos el token para referencias futuras
+            sessionStorage.setItem('habitacionData', JSON.stringify(habitacionData));
             initApp();
         } else {
-            alert('Habitación no válida active');
-            window.location.href = 'index.html';
+            // Si el backend dice error (403/404), mostramos y salimos
+            if (data.error) showToast(`❌ ${data.error}`);
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 2000);
         }
     } catch (e) {
         console.error(e);
-        initApp(); // Intenta cargar igual por si acaso
+        showToast('❌ Error de conexión');
     }
 }
 
-async function validarBackground(room) {
-    // Silent check
+async function validarSesionBackground() {
+    if (!habitacionData || !habitacionData.token) return;
+
     try {
-        const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
-        const data = await response.json();
-        const found = data.habitaciones.find(h => String(h.numero) === String(room));
-        if (!found) {
+        // Re-validar silenciosamente que el token siga activo (room ocupada)
+        const res = await fetch(`${CONFIG.API_URL}?action=getHabitacion&codigo=${habitacionData.token}`);
+        const data = await res.json();
+
+        if (data.error) {
             showToast('⚠️ Tu sesión ha expirado');
+            sessionStorage.removeItem('habitacionData');
+            setTimeout(() => window.location.href = 'index.html', 3000);
         }
     } catch (e) { }
 }
