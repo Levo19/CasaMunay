@@ -12,6 +12,9 @@ let habitacionData = null;
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', async () => {
     configurarSaludo();
+    // OPTIMIZACIÓN: Precarga de servicios en segundo plano
+    window.serviciosPromise = Math.random(); // Dummy init, used in logic
+    preloadServicios();
 
     // Check URL params
     const urlParams = new URLSearchParams(window.location.search);
@@ -56,7 +59,13 @@ function initApp() {
     }
 
     // Load services
-    cargarServicios();
+    // Load services (Si ya precargaron, es instantáneo)
+    if (servicios.length === 0) {
+        // Fallback si la precarga no ha terminado
+        cargarServicios();
+    } else {
+        renderProducts(servicios);
+    }
     document.getElementById('loadingScreen').style.opacity = '0';
     setTimeout(() => {
         document.getElementById('loadingScreen').style.display = 'none';
@@ -181,14 +190,20 @@ async function validarSesionBackground() {
 }
 
 // ===== DATA: SERVICES =====
-async function cargarServicios() {
-    // Try Cache
+async function preloadServicios() {
+    // Si ya tenemos cache, cargamos en memoria RAM
     const cache = sessionStorage.getItem('menuCache');
     if (cache) {
         servicios = JSON.parse(cache).servicios;
-        renderProducts(servicios);
-        return;
+        return; // Ya listos
     }
+    // Si no, fetch en background
+    cargarServicios();
+}
+
+async function cargarServicios() {
+    // Evitar doble fetch
+    if (servicios.length > 0) return;
 
     try {
         const res = await fetch(`${CONFIG.API_URL}?action=getServicios`);
@@ -196,10 +211,13 @@ async function cargarServicios() {
         if (data.servicios) {
             servicios = data.servicios;
             sessionStorage.setItem('menuCache', JSON.stringify(data));
-            renderProducts(servicios);
+            // Si la app ya está visible, renderizamos. Si no, esperamos a initApp
+            if (document.getElementById('productsGrid')) {
+                renderProducts(servicios);
+            }
         }
     } catch (e) {
-        showToast('Error cargando menú');
+        console.log('Precarga error', e);
     }
 }
 
