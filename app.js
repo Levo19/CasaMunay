@@ -351,9 +351,20 @@ function toggleCart(open) {
 }
 
 // ===== UI: CHECKOUT =====
+// ===== UI: CHECKOUT =====
 function abrirCheckout() {
     toggleCart(false); // Close cart
-    document.getElementById('modalCheckout').style.display = 'block';
+    const modal = document.getElementById('modalCheckout');
+    modal.style.display = 'flex'; // FLEX para centrar
+
+    // Update Data
+    const total = carrito.reduce((sum, i) => sum + (i.precio * i.cantidad), 0);
+    document.getElementById('cartTotal').innerText = `S/ ${total.toFixed(2)}`;
+
+    if (habitacionData) {
+        document.getElementById('inputHabitacion').value = habitacionData.numero;
+        document.getElementById('inputNombre').value = habitacionData.huesped;
+    }
 }
 
 async function enviarPedido(e) {
