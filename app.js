@@ -11,7 +11,7 @@ let habitacionData = null;
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', async () => {
-    设置Saludo();
+    configurarSaludo();
 
     // Check URL params
     const urlParams = new URLSearchParams(window.location.search);
@@ -64,7 +64,7 @@ function initApp() {
 }
 
 // ===== LOGIC: GREETING =====
-function 设置Saludo() {
+function configurarSaludo() {
     const hour = new Date().getHours();
     let text = 'Hola';
     if (hour < 12) text = 'Buenos días';
