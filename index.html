@@ -95,13 +95,17 @@
                 const res = await fetch(`${API_URL}?action=getHabitaciones`);
                 const data = await res.json();
 
-                if (data.habitaciones) {
+                if (data.habitaciones && data.habitaciones.length > 0) {
                     renderRooms(data.habitaciones);
                 } else {
-                    showError('No se encontraron habitaciones');
+                    // MOSTRAR PROPIAMENTE EL ERROR PARA DEBUG
+                    console.log('Data recibida:', data);
+                    const debugInfo = JSON.stringify(data);
+                    showError(`No se encontraron habitaciones activas. (Respuesta del servidor: ${debugInfo})`);
                 }
             } catch (e) {
-                showError('Error de conexión');
+                console.error(e);
+                showError(`Error de conexión: ${e.message}`);
             } finally {
                 document.getElementById('loadingScreen').style.opacity = '0';
                 setTimeout(() => document.getElementById('loadingScreen').style.display = 'none', 500);
