@@ -1,636 +1,329 @@
 // ===== CONFIGURACIÓN =====
 const CONFIG = {
-    // URL de tu Google Apps Script
+    // 🚨 REEMPLAZA ESTO DESPUÉS DEL DESPLIEGUE FINAL
     API_URL: 'https://script.google.com/macros/s/AKfycbzKJ3J5cG8cJ4hKFPDmVYOfRTn9aqmkOnjyDfMabRhsNaFCO-7AQ2COPa9iGjJysMkL/exec'
 };
 
-// Habilitar modo debug
-const DEBUG = true;
-function log(...args) {
-    if (DEBUG) console.log(...args);
-}
-
-// ===== ESTADO GLOBAL =====
+// State
 let servicios = [];
 let carrito = [];
-let tabActual = 'bebidas';
-let config = {};
 let habitacionData = null;
 
-// ===== INICIALIZACIÓN (VELOCIDAD EXTREMA) =====
+// ===== INIT =====
 document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        const path = window.location.pathname;
-        const esIndex = path.endsWith('index.html') || path.endsWith('/') || path.endsWith('/CasaMunay/');
-        const esServices = path.includes('services.html');
+    设置Saludo();
 
-        // ---------------------------------------------------------
-        // CASO 1: SERVICES (App de pedidos) - PRIORIDAD MÁXIMA
-        // ---------------------------------------------------------
-        if (esServices) {
-             const urlParams = new URLSearchParams(window.location.search);
-             const roomParam = urlParams.get('room');
+    // Check URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomParam = urlParams.get('room');
 
-             // ESTRATEGIA: ¿Tenemos datos en el bolsillo (memoria)?
-             const storedRoom = sessionStorage.getItem('habitacionSeleccionada');
-             
-             if (storedRoom) {
-                 const habitacionEnMemoria = JSON.parse(storedRoom);
-                 
-                 // Si la memoria coincide con la URL...
-                 if (String(habitacionEnMemoria.numero) === String(roomParam)) {
-                     console.log("🚀 VELOCIDAD LUZ: Renderizando interfaz YA.");
-                     
-                     // 1. ASIGNAMOS DATOS
-                     habitacionData = habitacionEnMemoria;
-                     
-                     // 2. PINTAMOS LA PANTALLA INMEDIATAMENTE
-                     mostrarInfoHabitacion();
-                     document.getElementById('loadingScreen').style.display = 'none'; // ¡ADIÓS CARGANDO!
-                     
-                     // 3. CARGAMOS EL RESTO EN "SEGUNDO PLANO" (Sin await que frene)
-                     // El usuario ya puede ver el menú mientras esto pasa:
-                     obtenerConfig().then(() => configurarWhatsApp()); // Config baja despues
-                     cargarServicios(); // Servicios cargan (probablemente desde caché)
-                     validarHabitacionSegundoPlano(roomParam); // Seguridad silenciosa
-                     
-                     return; // ¡TERMINAMOS! El usuario ya está feliz.
-                 }
-             }
-             
-             // SI LLEGAMOS AQUÍ es porque no había caché (Entrada directa/QR)
-             // Entonces sí toca esperar a cargar todo normal
-             console.log("🐢 Carga Normal (Sin caché)...");
-             await obtenerConfig();
-             await validarYEntrar(roomParam);
-             return;
+    // Check local storage for speed
+    const storedRoom = sessionStorage.getItem('habitacionSeleccionada');
+
+    if (storedRoom) {
+        habitacionData = JSON.parse(storedRoom);
+        if (roomParam && String(habitacionData.numero) !== String(roomParam)) {
+            // URL override
+            await validarYEntrar(roomParam);
+        } else {
+            initApp();
+            validarBackground(habitacionData.numero);
         }
-
-        // ---------------------------------------------------------
-        // CASO 2: INDEX (Selección)
-        // ---------------------------------------------------------
-        if (esIndex) {
-            console.log("Modo: Selección");
-            // Aquí no importa esperar un poco
-            await obtenerConfig(); 
-            const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
-            const dataHab = await response.json();
-            
-            if (typeof renderizarSeleccionHabitaciones === 'function') {
-                renderizarSeleccionHabitaciones(dataHab.habitaciones || []);
-            }
-            
-            const loading = document.getElementById('loadingScreen');
-            if (loading) loading.style.display = 'none';
+    } else if (roomParam) {
+        await validarYEntrar(roomParam);
+    } else {
+        // No room? Redirect to index (Selector)
+        // Solo si estamos en services.html
+        if (window.location.pathname.includes('services.html')) {
+            window.location.href = 'index.html';
         }
-
-    } catch (error) {
-        console.error('Error init:', error);
-        mostrarError('Error de conexión.');
     }
 });
-// ===== FUNCIONES AUXILIARES DE CARGA =====
 
-// Valida normal (para cuando entran por QR directo)
-async function validarYEntrar(roomParam) {
-    const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
-    const data = await response.json();
-    const validas = data.habitaciones || [];
-    const habitacion = validas.find(h => String(h.numero) === String(roomParam));
+function initApp() {
+    // UI Updates
+    if (habitacionData) {
+        document.getElementById('guestName').textContent = habitacionData.huesped || 'Estimado Huésped';
 
-    if (!habitacion) {
-        window.location.href = 'index.html';
-        return;
+        // Pre-fill fields
+        document.getElementById('inputHabitacion').value = habitacionData.numero;
+        document.getElementById('inputNombre').value = habitacionData.huesped || '';
     }
 
-    habitacionData = habitacion;
-    sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(habitacionData));
-    
-    mostrarInfoHabitacion();
-    configurarWhatsApp();
-    document.getElementById('loadingScreen').style.display = 'none';
-    await cargarServicios();
+    // Load services
+    cargarServicios();
+    document.getElementById('loadingScreen').style.opacity = '0';
+    setTimeout(() => {
+        document.getElementById('loadingScreen').style.display = 'none';
+    }, 500);
 }
 
-// Valida en segundo plano (si ya dejamos entrar al usuario)
-async function validarHabitacionSegundoPlano(roomParam) {
+// ===== LOGIC: GREETING =====
+function 设置Saludo() {
+    const hour = new Date().getHours();
+    let text = 'Hola';
+    if (hour < 12) text = 'Buenos días';
+    else if (hour < 18) text = 'Buenas tardes';
+    else text = 'Buenas noches';
+
+    document.getElementById('greetingTime').textContent = text;
+}
+
+// ===== LOGIC: WIFI =====
+function copiarWifi() {
+    const pass = document.getElementById('wifiPass').innerText;
+    navigator.clipboard.writeText(pass).then(() => {
+        showToast('✅ Contraseña copiada');
+    }).catch(() => {
+        showToast('❌ Error al copiar');
+    });
+}
+
+// ===== DATA: VALIDATION =====
+async function validarYEntrar(room) {
     try {
+        const res = await fetch(`${CONFIG.API_URL}?action=getHabitacion&codigo=${room}`); // OJO: Tu backend usa 'getHabitaciones' y filtra, o 'getHabitacion' por QR.
+        // Simulamos logica de app.js anterior que usaba getHabitaciones para todo
+        // Pero idealmente usaria getHabitaciones
+
         const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
         const data = await response.json();
-        const validas = data.habitaciones || [];
-        const sigueValida = validas.find(h => String(h.numero) === String(roomParam));
+        const found = data.habitaciones.find(h => String(h.numero) === String(room));
 
-        if (!sigueValida) {
-            alert("Tu sesión ha expirado o la habitación ya no está disponible.");
+        if (found) {
+            habitacionData = found;
+            sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(found));
+            initApp();
+        } else {
+            alert('Habitación no válida active');
             window.location.href = 'index.html';
         }
     } catch (e) {
-        console.error("No se pudo re-validar, pero dejamos seguir al usuario.", e);
+        console.error(e);
+        initApp(); // Intenta cargar igual por si acaso
     }
 }
 
-// ===== OBTENER CONFIGURACIÓN (CON CACHÉ) =====
-async function obtenerConfig() {
+async function validarBackground(room) {
+    // Silent check
     try {
-        // 1. Intentar leer de caché
-        const cached = sessionStorage.getItem('configCache');
-        if (cached) {
-            config = JSON.parse(cached);
-            console.log("⚡ Config cargada de caché");
-            return;
-        }
-
-        // 2. Si no hay, pedir a Google
-        const response = await fetch(`${CONFIG.API_URL}?action=getConfig`);
+        const response = await fetch(`${CONFIG.API_URL}?action=getHabitaciones`);
         const data = await response.json();
-        config = data;
-        // Guardar para la próxima
-        sessionStorage.setItem('configCache', JSON.stringify(data));
-    } catch (error) {
-        console.error('Error config:', error);
-    }
+        const found = data.habitaciones.find(h => String(h.numero) === String(room));
+        if (!found) {
+            showToast('⚠️ Tu sesión ha expirado');
+        }
+    } catch (e) { }
 }
 
-// ===== CARGAR SERVICIOS (CON CACHÉ DE VELOCIDAD) =====
+// ===== DATA: SERVICES =====
 async function cargarServicios() {
-    try {
-        // A. INTENTO DE CARGA INSTANTÁNEA (CACHE DEL INDEX)
-        const menuCache = sessionStorage.getItem('menuCache');
-        
-        if (menuCache) {
-            console.log('⚡ ¡Usando menú pre-cargado! (Velocidad máxima)');
-            const data = JSON.parse(menuCache);
-            if (data.servicios) {
-                servicios = data.servicios;
-                renderizarServicios();
-                return; // Terminamos aquí, no llamamos a Google
-            }
-        }
+    // Try Cache
+    const cache = sessionStorage.getItem('menuCache');
+    if (cache) {
+        servicios = JSON.parse(cache).servicios;
+        renderProducts(servicios);
+        return;
+    }
 
-        // B. SI NO HAY CACHE, CARGA NORMAL (Backup)
-        console.log('🌐 No hay caché, descargando de Google...');
-        const response = await fetch(`${CONFIG.API_URL}?action=getServicios`);
-        const data = await response.json();
-        
+    try {
+        const res = await fetch(`${CONFIG.API_URL}?action=getServicios`);
+        const data = await res.json();
         if (data.servicios) {
             servicios = data.servicios;
-            // Guardamos para el futuro
             sessionStorage.setItem('menuCache', JSON.stringify(data));
-            renderizarServicios();
-        } else {
-            throw new Error('No se recibieron servicios');
+            renderProducts(servicios);
         }
-
-    } catch (error) {
-        console.error('Error al cargar servicios:', error);
-        if (servicios.length === 0) {
-            mostrarError(`No se pudo cargar el menú: ${error.message}`);
-        }
+    } catch (e) {
+        showToast('Error cargando menú');
     }
 }
 
-// ===== OBTENER CONFIGURACIÓN =====
-async function obtenerConfig() {
-    try {
-        // Intentamos obtener config del cache primero también si quieres
-        const response = await fetch(`${CONFIG.API_URL}?action=getConfig`);
-        const data = await response.json();
-        config = data;
-    } catch (error) {
-        console.error('Error al obtener configuración:', error);
-    }
-}
-
-// ===== MOSTRAR INFO DE HABITACIÓN =====
-function mostrarInfoHabitacion() {
-    if (!habitacionData) return;
-    
-    const infoDiv = document.getElementById('habitacionInfo');
-    
-    // Muestra el número
-    document.getElementById('numeroHabitacion').textContent = habitacionData.numero;
-    
-    // Muestra el nombre personalizado
-    const nombreParaMostrar = habitacionData.huesped ? `Hola, ${habitacionData.huesped}` : 'Estimado huésped';
-    
-    const elementoNombre = document.getElementById('nombreHuesped');
-    if (elementoNombre) {
-        elementoNombre.textContent = nombreParaMostrar;
-    }
-    
-    infoDiv.style.display = 'block';
-    
-    // Pre-llenar formulario de pedido
-    const inputHabitacion = document.getElementById('habitacionCliente');
-    if (inputHabitacion) inputHabitacion.value = habitacionData.numero;
-    
-    const inputNombre = document.getElementById('nombreCliente');
-    if (inputNombre && habitacionData.huesped) {
-        inputNombre.value = habitacionData.huesped;
-    }
-}
-
-// ===== CAMBIAR TAB =====
-function cambiarTab(tab) {
-    tabActual = tab;
-    
-    // Actualizar botones
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
-    
-    // Actualizar contenido
-    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-    document.getElementById(`tab-${tab}`).classList.add('active');
-}
-
-// ===== RENDERIZAR SERVICIOS =====
-function renderizarServicios() {
-    renderizarBebidas();
-    renderizarTours();
-}
-
-// ===== RENDERIZAR BEBIDAS Y SNACKS =====
-function renderizarBebidas() {
-    const container = document.getElementById('serviciosBebidas');
+// ===== UI: RENDER PRODUCTS =====
+function renderProducts(lista) {
+    const container = document.getElementById('productsGrid');
     container.innerHTML = '';
-    
-    const bebidas = servicios.filter(s => s.categoria === 'Bebidas' || s.categoria === 'Snacks');
-    
-    if (bebidas.length === 0) {
-        container.innerHTML = '<p style="text-align: center; padding: 40px; color: #6b7280;">No hay bebidas o snacks disponibles.</p>';
-        return;
-    }
-    
-    bebidas.forEach(servicio => {
-        const card = crearCardBebida(servicio);
+
+    lista.forEach(item => {
+        // Find in cart
+        const inCart = carrito.find(c => c.id === item.id);
+        const qty = inCart ? inCart.cantidad : 0;
+
+        const card = document.createElement('div');
+        // Tours get full width
+        if (item.categoria === 'Tours') card.className = 'card-product card-tour';
+        else card.className = 'card-product';
+
+        card.innerHTML = `
+            <img src="${item.imagen || 'https://via.placeholder.com/300'}" class="card-product-img">
+            <div class="card-product-body">
+                <div class="card-title">${item.nombre}</div>
+                <div class="card-desc">${item.descripcion}</div>
+                <div class="card-footer">
+                    <div class="card-price">S/ ${item.precio.toFixed(2)}</div>
+                    ${qty === 0 ? `
+                        <button class="btn-add" onclick="updateCart(${item.id}, 1)">
+                            <span>+</span>
+                        </button>
+                    ` : `
+                        <div style="display:flex; align-items:center; gap:10px; background:#F1F5F9; padding:4px 8px; border-radius:20px;">
+                            <button class="btn-add" onclick="updateCart(${item.id}, -1)" style="width:24px; height:24px; font-size:1rem;">-</button>
+                            <span style="font-weight:600; font-size:0.9rem;">${qty}</span>
+                            <button class="btn-add" onclick="updateCart(${item.id}, 1)" style="width:24px; height:24px; font-size:1rem;">+</button>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
         container.appendChild(card);
     });
 }
 
-// ===== CREAR CARD DE BEBIDA/SNACK =====
-function crearCardBebida(servicio) {
-    const card = document.createElement('div');
-    card.className = 'servicio-card';
-    
-    const enCarrito = carrito.find(item => item.id === servicio.id);
-    const cantidad = enCarrito ? enCarrito.cantidad : 0;
-    
-    const stockClass = servicio.stock < 10 && servicio.stock > 0 ? 'stock-bajo' : '';
-    
-    card.innerHTML = `
-        <img src="${servicio.imagen || 'https://via.placeholder.com/300x180?text=' + encodeURIComponent(servicio.nombre)}" 
-             alt="${servicio.nombre}" 
-             class="servicio-imagen"
-             onerror="this.src='https://via.placeholder.com/300x180?text=' + encodeURIComponent('${servicio.nombre}')">
-        <div class="servicio-body">
-            <span class="servicio-categoria">${servicio.categoria}</span>
-            <h3 class="servicio-nombre">${servicio.nombre}</h3>
-            <p class="servicio-descripcion">${servicio.descripcion}</p>
-            <span class="servicio-stock ${stockClass}">📦 Stock: ${servicio.stock}</span>
-            <div class="servicio-footer">
-                <div class="servicio-precio">S/ ${servicio.precio.toFixed(2)}</div>
-                <div class="cantidad-selector">
-                    <button onclick="cambiarCantidad(${servicio.id}, -1)" ${cantidad === 0 ? 'disabled' : ''}>−</button>
-                    <span>${cantidad}</span>
-                    <button onclick="cambiarCantidad(${servicio.id}, 1)" ${servicio.stock === 0 || cantidad >= servicio.stock ? 'disabled' : ''}>+</button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    return card;
-}
+// ===== UI: FILTER =====
+function filtrarCategoria(cat, btn) {
+    // Update Tabs
+    document.querySelectorAll('.tab-pill').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
 
-// ===== RENDERIZAR TOURS =====
-function renderizarTours() {
-    const container = document.getElementById('serviciosTours');
-    container.innerHTML = '';
-    
-    const tours = servicios.filter(s => s.categoria === 'Tours');
-    
-    if (tours.length === 0) {
-        container.innerHTML = '<p style="text-align: center; padding: 40px; color: #6b7280;">No hay tours disponibles.</p>';
-        return;
-    }
-    
-    tours.forEach(servicio => {
-        const card = crearCardTour(servicio);
-        container.appendChild(card);
-    });
-}
-
-// ===== CREAR CARD DE TOUR =====
-function crearCardTour(servicio) {
-    const card = document.createElement('div');
-    card.className = 'tour-card';
-    
-    const enCarrito = carrito.find(item => item.id === servicio.id);
-    const agregado = enCarrito ? true : false;
-    
-    card.innerHTML = `
-        <img src="${servicio.imagen || 'https://via.placeholder.com/600x280?text=' + encodeURIComponent(servicio.nombre)}" 
-             alt="${servicio.nombre}" 
-             class="tour-imagen"
-             onerror="this.src='https://via.placeholder.com/600x280?text=' + encodeURIComponent('${servicio.nombre}')">
-        <div class="tour-body">
-            <h3 class="tour-nombre">${servicio.nombre}</h3>
-            <p class="tour-descripcion">${servicio.descripcion}</p>
-            <div class="tour-footer">
-                <div>
-                    <span class="tour-precio-label">Precio por persona</span>
-                    <div class="tour-precio">S/ ${servicio.precio.toFixed(2)}</div>
-                </div>
-                <button class="btn-agregar-tour ${agregado ? 'btn-agregado' : ''}" onclick="toggleTour(${servicio.id})">
-                    ${agregado ? '✓ Agregado' : '+ Agregar'}
-                </button>
-            </div>
-        </div>
-    `;
-    
-    return card;
-}
-
-// ===== TOGGLE TOUR (agregar/quitar) =====
-function toggleTour(servicioId) {
-    const servicio = servicios.find(s => s.id === servicioId);
-    if (!servicio) return;
-    
-    const itemExistente = carrito.find(item => item.id === servicioId);
-    
-    if (itemExistente) {
-        // Quitar del carrito
-        carrito = carrito.filter(item => item.id !== servicioId);
+    if (cat === 'all') {
+        renderProducts(servicios);
     } else {
-        // Agregar al carrito
-        carrito.push({
-            id: servicio.id,
-            nombre: servicio.nombre,
-            precio: servicio.precio,
-            cantidad: 1,
-            categoria: servicio.categoria
-        });
+        const filtered = servicios.filter(s => s.categoria === cat);
+        renderProducts(filtered);
     }
-    
-    actualizarCarrito();
-    renderizarTours();
 }
 
-// ===== CAMBIAR CANTIDAD (bebidas/snacks) =====
-function cambiarCantidad(servicioId, cambio) {
-    const servicio = servicios.find(s => s.id === servicioId);
-    if (!servicio) return;
-    
-    const itemExistente = carrito.find(item => item.id === servicioId);
-    
-    if (cambio > 0) {
-        // Agregar
-        if (itemExistente) {
-            if (itemExistente.cantidad < servicio.stock) {
-                itemExistente.cantidad++;
-            }
-        } else {
-            carrito.push({
-                id: servicio.id,
-                nombre: servicio.nombre,
-                precio: servicio.precio,
-                cantidad: 1,
-                categoria: servicio.categoria
-            });
+// ===== LOGIC: CART =====
+function updateCart(id, delta) {
+    const item = servicios.find(s => s.id === id);
+    const existing = carrito.find(c => c.id === id);
+
+    if (existing) {
+        existing.cantidad += delta;
+        if (existing.cantidad <= 0) {
+            carrito = carrito.filter(c => c.id !== id);
         }
-    } else {
-        // Quitar
-        if (itemExistente) {
-            itemExistente.cantidad--;
-            if (itemExistente.cantidad <= 0) {
-                carrito = carrito.filter(item => item.id !== servicioId);
-            }
-        }
+    } else if (delta > 0) {
+        carrito.push({ ...item, cantidad: 1 });
     }
-    
-    actualizarCarrito();
-    renderizarBebidas();
+
+    updateCartUI();
+    // Re-render to show +/- buttons
+    // NOTE: In a framework (React) this is auto, here we manual
+    // To avoid full re-render flickering, ideally we update DOM node.
+    // simpler: re-render current view
+    const activeTab = document.querySelector('.tab-pill.active').innerText;
+    if (activeTab.includes('Todos')) renderProducts(servicios);
+    else if (activeTab.includes('Bebidas')) renderProducts(servicios.filter(s => s.categoria === 'Bebidas'));
+    else if (activeTab.includes('Snacks')) renderProducts(servicios.filter(s => s.categoria === 'Snacks'));
+    else if (activeTab.includes('Tours')) renderProducts(servicios.filter(s => s.categoria === 'Tours'));
 }
 
-// ===== ACTUALIZAR CARRITO =====
-function actualizarCarrito() {
-    const carritoFlotante = document.getElementById('carritoFlotante');
-    const carritoCount = document.getElementById('carritoCount');
-    const carritoTotal = document.getElementById('carritoTotal');
-    const carritoItems = document.getElementById('carritoItems');
-    
+function updateCartUI() {
+    const total = carrito.reduce((sum, i) => sum + (i.precio * i.cantidad), 0);
+    const count = carrito.reduce((sum, i) => sum + i.cantidad, 0);
+
+    // Floater
+    const floater = document.getElementById('cartFloater');
+    document.getElementById('floatCount').innerText = count;
+    document.getElementById('floatTotal').innerText = total.toFixed(2);
+
+    if (count > 0) floater.classList.add('visible');
+    else floater.classList.remove('visible');
+
+    // Bottom Sheet
+    const container = document.getElementById('cartItems');
+    document.getElementById('cartTotal').innerText = total.toFixed(2);
+
     if (carrito.length === 0) {
-        carritoFlotante.style.display = 'none';
+        container.innerHTML = '<div style="text-align: center; color: #94A3B8; padding: 40px;">Tu carrito está vacío</div>';
         return;
     }
-    
-    carritoFlotante.style.display = 'block';
-    
-    const totalItems = carrito.reduce((sum, item) => sum + item.cantidad, 0);
-    const totalPrecio = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-    
-    carritoCount.textContent = totalItems;
-    carritoTotal.textContent = totalPrecio.toFixed(2);
-    
-    carritoItems.innerHTML = '';
+
+    container.innerHTML = '';
     carrito.forEach(item => {
-        const itemDiv = document.createElement('div');
-        itemDiv.className = 'carrito-item';
-        itemDiv.innerHTML = `
-            <div class="carrito-item-info">
-                <div class="carrito-item-nombre">${item.nombre}</div>
-                <div class="carrito-item-precio">S/ ${item.precio.toFixed(2)} ${item.cantidad > 1 ? `x${item.cantidad}` : ''}</div>
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #f1f5f9; padding-bottom:10px;';
+        row.innerHTML = `
+            <div>
+                <div style="font-weight:600;">${item.nombre}</div>
+                <div style="font-size:0.9rem; color:#64748B;">S/ ${item.precio.toFixed(2)} x ${item.cantidad}</div>
             </div>
-            <div style="font-weight: 700; color: var(--primary);">
-                S/ ${(item.precio * item.cantidad).toFixed(2)}
-            </div>
+            <div style="font-weight:700;">S/ ${(item.precio * item.cantidad).toFixed(2)}</div>
         `;
-        carritoItems.appendChild(itemDiv);
+        container.appendChild(row);
     });
 }
 
-// ===== TOGGLE CARRITO =====
-function toggleCarrito() {
-    const contenido = document.getElementById('carritoContenido');
-    contenido.style.display = contenido.style.display === 'none' ? 'block' : 'none';
+function toggleCart(open) {
+    const sheet = document.getElementById('cartSheet');
+    const backdrop = document.getElementById('modalBackdrop');
+
+    if (open) {
+        sheet.classList.add('open');
+        backdrop.classList.add('active');
+    } else {
+        sheet.classList.remove('open');
+        backdrop.classList.remove('active');
+    }
 }
 
-// ===== ABRIR FORMULARIO =====
-function abrirFormulario() {
-    const modal = document.getElementById('modalFormulario');
-    const resumenItems = document.getElementById('resumenItems');
-    const totalFinal = document.getElementById('totalFinal');
-    
-    // Renderizar resumen
-    resumenItems.innerHTML = '';
-    carrito.forEach(item => {
-        const itemDiv = document.createElement('div');
-        itemDiv.className = 'resumen-item';
-        itemDiv.innerHTML = `
-            <span>${item.nombre} ${item.cantidad > 1 ? `x${item.cantidad}` : ''}</span>
-            <span>S/ ${(item.precio * item.cantidad).toFixed(2)}</span>
-        `;
-        resumenItems.appendChild(itemDiv);
-    });
-    
-    const total = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-    totalFinal.textContent = total.toFixed(2);
-    
-    modal.style.display = 'block';
+// ===== UI: CHECKOUT =====
+function abrirCheckout() {
+    toggleCart(false); // Close cart
+    document.getElementById('modalCheckout').style.display = 'block';
 }
 
-// ===== CERRAR FORMULARIO =====
-function cerrarFormulario() {
-    document.getElementById('modalFormulario').style.display = 'none';
-}
+async function enviarPedido(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSubmit');
+    btn.disabled = true;
+    btn.innerText = 'Enviando...';
 
-// ===== ENVIAR PEDIDO =====
-async function enviarPedido(event) {
-    event.preventDefault();
-    
-    const btnEnviar = document.getElementById('btnEnviar');
-    btnEnviar.disabled = true;
-    btnEnviar.textContent = 'Enviando...';
-    
-    const nombre = document.getElementById('nombreCliente').value;
-    const habitacion = document.getElementById('habitacionCliente').value;
-    const email = document.getElementById('emailCliente').value;
-    const notas = document.getElementById('notasCliente').value;
-    
-    const total = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-    
     const pedido = {
-        nombre,
-        habitacion,
-        email,
-        notas,
+        nombre: document.getElementById('inputNombre').value,
+        habitacion: document.getElementById('inputHabitacion').value,
+        email: document.getElementById('inputEmail').value,
+        notas: document.getElementById('inputNotas').value,
         servicios: carrito,
-        total
+        total: carrito.reduce((sum, i) => sum + (i.precio * i.cantidad), 0)
     };
-    
+
     try {
-        const response = await fetch(`${CONFIG.API_URL}?action=crearPedido`, {
+        const res = await fetch(`${CONFIG.API_URL}?action=crearPedido`, {
             method: 'POST',
             body: JSON.stringify(pedido)
         });
-        
-        const data = await response.json();
-        
+        const data = await res.json();
+
         if (data.success) {
-            cerrarFormulario();
-            mostrarConfirmacion();
-            
-            // Limpiar carrito
+            document.getElementById('modalCheckout').style.display = 'none';
+            document.getElementById('modalSuccess').style.display = 'flex';
             carrito = [];
-            actualizarCarrito();
-            renderizarServicios();
-            
-            // Limpiar formulario
-            document.getElementById('pedidoForm').reset();
-            document.getElementById('habitacionCliente').value = habitacionData.numero;
+            updateCartUI();
         } else {
-            alert('Error al procesar el pedido. Por favor, intenta nuevamente.');
+            showToast('❌ Error en el servidor');
         }
-    } catch (error) {
-        console.error('Error al enviar pedido:', error);
-        alert('Error al enviar el pedido. Por favor, verifica tu conexión e intenta nuevamente.');
+    } catch (err) {
+        showToast('❌ Error de conexión');
     } finally {
-        btnEnviar.disabled = false;
-        btnEnviar.textContent = 'Confirmar Pedido';
+        btn.disabled = false;
+        btn.innerText = 'Enviar Pedido';
     }
 }
 
-// ===== MOSTRAR CONFIRMACIÓN =====
-function mostrarConfirmacion() {
-    document.getElementById('modalConfirmacion').style.display = 'block';
-}
+// ===== UTILS: TOAST =====
+function showToast(msg) {
+    const container = document.getElementById('toastContainer');
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.innerText = msg;
 
-// ===== CERRAR CONFIRMACIÓN =====
-function cerrarConfirmacion() {
-    document.getElementById('modalConfirmacion').style.display = 'none';
-}
+    container.appendChild(el);
 
-// ===== CONFIGURAR WHATSAPP =====
-function configurarWhatsApp() {
-    if (!config.whatsapp) return;
-    
-    const mensaje = encodeURIComponent(`Hola! Soy huésped de la habitación ${habitacionData.numero}. Tengo una consulta...`);
-    const whatsappUrl = `https://wa.me/${config.whatsapp}?text=${mensaje}`;
-    
-    const whatsappBtn = document.getElementById('whatsappButton');
-    if (whatsappBtn) {
-        whatsappBtn.href = whatsappUrl;
-        whatsappBtn.style.display = 'flex';
-    }
-}
-
-// ===== MOSTRAR ERROR =====
-function mostrarError(mensaje) {
-    const loadingScreen = document.getElementById('loadingScreen');
-    if (loadingScreen) {
-        loadingScreen.innerHTML = `
-            <div style="text-align: center; padding: 40px;">
-                <div style="font-size: 4rem; margin-bottom: 20px;">⚠️</div>
-                <h2 style="color: #ef4444; margin-bottom: 15px;">Error</h2>
-                <p style="color: #6b7280;">${mensaje}</p>
-                <button onclick="location.reload()" style="margin-top: 20px; padding: 12px 30px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 1rem;">
-                    Reintentar
-                </button>
-            </div>
-        `;
-        loadingScreen.style.display = 'flex';
-    }
-}
-
-// ===== CERRAR MODALES AL HACER CLIC FUERA =====
-window.onclick = function(event) {
-    const modalFormulario = document.getElementById('modalFormulario');
-    const modalConfirmacion = document.getElementById('modalConfirmacion');
-    
-    if (event.target === modalFormulario) {
-        cerrarFormulario();
-    }
-    if (event.target === modalConfirmacion) {
-        cerrarConfirmacion();
-    }
-}
-
-// ===== RENDERIZAR BOTONES DE SELECCIÓN (PARA INDEX.HTML) =====
-function renderizarSeleccionHabitaciones(habitaciones) {
-    const container = document.getElementById('roomsContainer'); 
-    
-    if (!container) return;
-
-    container.innerHTML = ''; 
-
-    if (habitaciones.length === 0) {
-        container.innerHTML = '<p class="no-rooms">No hay habitaciones disponibles para check-in hoy.</p>';
-        return;
-    }
-
-    habitaciones.forEach(hab => {
-        const card = document.createElement('div'); // Usamos DIV con onclick
-        card.className = 'room-card';
-        
-        // 🚨 AQUÍ ESTÁ EL CAMBIO CLAVE: GUARDAR ANTES DE IR 🚨
-        card.onclick = function() {
-            // 1. Guardamos los datos de la habitación en la mochila del navegador
-            sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(hab));
-            
-            // 2. Ahora sí, nos vamos a la otra página
-            window.location.href = `services.html?room=${hab.numero}`;
-        };
-        
-        // Estilos de estado
-        const statusClass = hab.estado === 'ocupada' ? 'status-ocupada' : 'status-disponible';
-        const statusText = hab.estado === 'ocupada' ? 'Ocupada' : 'Disponible';
-        
-        card.innerHTML = `
-            <div class="room-icon">🛏️</div>
-            <div class="room-number">${hab.numero}</div>
-            <span class="room-status ${statusClass}">${statusText}</span>
-            <div class="room-guest">${hab.huesped || ''}</div>
-        `;
-        
-        container.appendChild(card);
-    });
+    setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-20px)';
+        setTimeout(() => el.remove(), 300);
+    }, 3000);
 }
