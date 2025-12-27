@@ -138,8 +138,8 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Correo Electrónico (Opcional)</label>
-                    <input type="email" id="inputEmail" class="form-input" placeholder="tucorreo@ejemplo.com">
+                    <label class="form-label">Correo Electrónico <span style="color:red">*</span></label>
+                    <input type="email" id="inputEmail" class="form-input" placeholder="tucorreo@ejemplo.com" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Notas Adicionales</label>
@@ -171,7 +171,8 @@
             <div class="auth-icon">🔒</div>
             <h2 class="modal-title">Seguridad</h2>
             <p class="modal-subtitle" style="margin-bottom:30px;">Para proteger tu cuenta, ingresa el
-                <strong>apellido</strong> del titular.</p>
+                <strong>apellido</strong> del titular.
+            </p>
 
             <form onsubmit="verificarIdentidad(event)">
                 <div class="form-group">
