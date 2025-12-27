@@ -118,7 +118,9 @@
                 div.className = `room-card ${isOccupied ? 'ocupada' : ''}`;
                 div.onclick = () => {
                     sessionStorage.setItem('habitacionSeleccionada', JSON.stringify(h));
-                    window.location.href = `services.html?room=${h.numero}`;
+                    // Usamos 'q' (código seguro) en lugar de 'room' (número)
+                    // El backend ahora devuelve 'token' en getHabitaciones
+                    window.location.href = `services.html?q=${h.token || h.numero}`;
                 };
 
                 div.innerHTML = `
