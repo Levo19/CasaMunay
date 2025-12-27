@@ -359,7 +359,7 @@ function abrirCheckout() {
 
     // Update Data
     const total = carrito.reduce((sum, i) => sum + (i.precio * i.cantidad), 0);
-    document.getElementById('cartTotal').innerText = `S/ ${total.toFixed(2)}`;
+    document.getElementById('checkoutTotal').innerText = `S/ ${total.toFixed(2)}`;
 
     if (habitacionData) {
         // Logica robusta para numero de habitacion (Fallback si no viene del backend)
