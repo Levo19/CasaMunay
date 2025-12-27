@@ -219,7 +219,7 @@ function renderProducts(lista) {
         else card.className = 'card-product';
 
         card.innerHTML = `
-            <img src="${item.imagen || 'https://via.placeholder.com/300'}" class="card-product-img">
+            <img src="${item.imagen || 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?auto=format&fit=crop&w=300&q=80'}" class="card-product-img" onerror="this.src='https://placehold.co/300x200?text=CasaMunay'">
             <div class="card-product-body">
                 <div class="card-title">${item.nombre}</div>
                 <div class="card-desc">${item.descripcion}</div>
