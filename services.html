@@ -152,6 +152,32 @@
         </div>
     </div>
 
+    <!-- Modal AUTH (Challenge) -->
+    <div id="modalAuth" class="modal"
+        style="display:none; align-items:center; justify-content:center; backdrop-filter: blur(10px); background: rgba(15, 23, 42, 0.8);">
+        <div class="glass-card" style="background: white; padding: 30px; width: 90%; max-width: 350px;">
+            <div style="text-align:center; margin-bottom:20px;">
+                <div style="font-size: 3rem; margin-bottom: 10px;">🔒</div>
+                <h2 style="font-size: 1.4rem;">Verificación de Seguridad</h2>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Por favor, ingresa el <strong>apellido</strong>
+                    del titular de la reserva.</p>
+            </div>
+
+            <form onsubmit="verificarIdentidad(event)">
+                <div class="form-group">
+                    <input type="text" id="inputApellidoAuth" placeholder="Ej: Perez" required
+                        style="text-align:center; font-size:1.2rem; letter-spacing:1px;">
+                    <input type="hidden" id="tokenAuth">
+                </div>
+                <button type="submit" class="btn-primary-block" id="btnAuth">
+                    Verificar
+                </button>
+            </form>
+            <p id="authError"
+                style="color:#ef4444; font-size:0.85rem; text-align:center; margin-top:10px; display:none;"></p>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 
